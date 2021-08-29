@@ -1,0 +1,30 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "AzureKinect",
+	"Description": "",
+	"Category": "Other",
+	"CreatedBy": "Ayumu Nagamatsu",
+	"CreatedByURL": "https://ayumu-nagamatsu.com/",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": true,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"SupportedTargetPlatforms": [ "Win64" ],
+	"Modules": [
+		{
+			"Name": "AzureKinect",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "AzureKinectEditor",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		}
+	]
+}
