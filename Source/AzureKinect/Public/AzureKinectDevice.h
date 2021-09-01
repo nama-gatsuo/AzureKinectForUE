@@ -6,17 +6,32 @@
 
 #include "AzureKinectDevice.generated.h"
 
+DECLARE_LOG_CATEGORY_EXTERN(AzureKinectDeviceLog, Log, All);
+
 UCLASS(BlueprintType, hidecategories=(Object))
 class AZUREKINECT_API UAzureKinectDevice : public UObject
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(EditAnywhere)
+	UAzureKinectDevice();
+	UAzureKinectDevice(const FObjectInitializer& ObjectInitializer);
+
+	UPROPERTY(EditAnywhere, Category = "AzureKinect")
 	UTextureRenderTarget2D* DepthTexture;
 
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "AzureKinect")
 	UTextureRenderTarget2D* ColorTexture;
 
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "AzureKinect")
 	UTextureRenderTarget2D* IrTexture;
+
+	UFUNCTION(CallInEditor, Category = "AzureKinect")
+	void LoadDevice();
+
+	UPROPERTY(EditAnywhere, Category = "Tmp")
+	TArray<FString> DeviceList;
+
+private:
+	
+
 };
