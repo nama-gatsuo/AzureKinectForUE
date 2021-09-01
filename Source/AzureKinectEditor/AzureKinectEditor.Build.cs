@@ -9,15 +9,26 @@ public class AzureKinectEditor : ModuleRules
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
+		PrivateIncludePaths.AddRange(
+			new string[]
+			{
+				"AzureKinectEditor/Private",
+				"AzureKinectEditor/Private/AssetTools",
+				"AzureKinectEditor/Private/Customizations",
+				"AzureKinectEditor/Private/Factories",
+			});
+
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
 				"Core",
 				"CoreUObject",
 				"Engine",
+				"Slate",
+				"SlateCore",
+				"InputCore",
 				"AzureKinect",
 				"UnrealEd",
-			}
-			);
+			});
 	}
 }

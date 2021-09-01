@@ -19,8 +19,12 @@ UAzureKinectDevice::UAzureKinectDevice(const FObjectInitializer& ObjectInitializ
 
 void UAzureKinectDevice::LoadDevice()
 {
+
 	// https://docs.microsoft.com/en-us/azure/kinect-dk/find-then-open-device
 	int32 NumKinect = k4a_device_get_installed_count();
+	
+	DeviceList.Empty(NumKinect + 1);
+	DeviceList.Add(MakeShared<FString>("No Device"));
 
 	if (NumKinect > 0)
 	{
@@ -29,12 +33,9 @@ void UAzureKinectDevice::LoadDevice()
 			try
 			{
 				// Open connection to the device.
-				k4a::device Device = k4a::device::open(0);
-				// Get the device serial number.
-				FString SerialNumber(Device.get_serialnum().c_str());
-				
-				DeviceList.Add(SerialNumber);
-
+				k4a::device Device = k4a::device::open(i);
+				// Get and store the device serial number
+				DeviceList.Add(MakeShared<FString>(Device.get_serialnum().c_str()));
 				Device.close();
 			}
 			catch (const k4a::error& e)

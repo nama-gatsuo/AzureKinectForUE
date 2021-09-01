@@ -27,9 +27,9 @@ public:
 
 	UFUNCTION(CallInEditor, Category = "AzureKinect")
 	void LoadDevice();
-
-	UPROPERTY(EditAnywhere, Category = "Tmp")
-	TArray<FString> DeviceList;
+	
+	int32 DeviceIndex = -1;
+	TArray<TSharedPtr<FString>> DeviceList;
 
 private:
 	
