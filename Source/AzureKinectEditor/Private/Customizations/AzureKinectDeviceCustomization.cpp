@@ -31,7 +31,7 @@ void FAzureKinectDeviceCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 	}
 
 	// Customize 'AzureKinect' category
-	IDetailCategoryBuilder& OverridesCategory = DetailBuilder.EditCategory("AzureKinect");
+	IDetailCategoryBuilder& OverridesCategory = DetailBuilder.EditCategory("Azure Kinect");
 	
 	{
 		// Add Custom Row
@@ -79,7 +79,6 @@ TSharedRef<SWidget> FAzureKinectDeviceCustomization::MakeWidgetForOption(TShared
 void FAzureKinectDeviceCustomization::OnSelectionChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type)
 {
 	CurrentOption = NewValue;
-
 	// Also update UAzureKinectDevice's current index
 	int32 IndexOfFound = AzureKinectDevice->DeviceList.Find(NewValue);
 	if (IndexOfFound == INDEX_NONE)
