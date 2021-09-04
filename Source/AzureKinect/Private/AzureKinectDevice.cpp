@@ -1,27 +1,23 @@
 // Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "AzureKinectDevice.h"
+#include "Runtime/RHI/Public/RHI.h"
 
 DEFINE_LOG_CATEGORY(AzureKinectDeviceLog);
 
 UAzureKinectDevice::UAzureKinectDevice()
 {
-	UE_LOG(AzureKinectDeviceLog, Verbose, TEXT("Constructed."));
 	LoadDevice();
 }
 
 UAzureKinectDevice::UAzureKinectDevice(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
-	UE_LOG(AzureKinectDeviceLog, Verbose, TEXT("Constructed. (OI)"));
 	LoadDevice();
 }
 
 void UAzureKinectDevice::LoadDevice()
 {
-
-	// https://docs.microsoft.com/en-us/azure/kinect-dk/find-then-open-device
-	int32 NumKinect = k4a_device_get_installed_count();
+	
+	int32 NumKinect = GetNumConnectedDevices();
 	
 	DeviceList.Empty(NumKinect + 1);
 	DeviceList.Add(MakeShared<FString>("No Device"));
@@ -78,7 +74,7 @@ void UAzureKinectDevice::StartDevice()
 		UE_LOG(AzureKinectDeviceLog, Error, TEXT("%s"), *ErrStr);
 		return;
 	}
-
+	
 }
 
 void UAzureKinectDevice::StopDevice()
@@ -113,19 +109,103 @@ void UAzureKinectDevice::Update()
 		return;
 	}
 
-	CaptureColorImage();
-	CaptureDepthImage();
+	if (ColorTexture)
+	{
+		CaptureColorImage();
+	}
+
+	if (DepthTexture)
+	{
+		CaptureDepthImage();
+	}
+	
+	if (InflaredTexture)
+	{
+		CaptureInflaredImage();
+	}
+
 }
 
 void UAzureKinectDevice::CaptureColorImage()
 {
 	const k4a::image& ColorCapture = Capture.get_color_image();
-	// reinterpret_cast<uint8_t*>(ColorCapture.get_buffer());
+	
+	int32 Width = ColorCapture.get_width_pixels(), Height = ColorCapture.get_height_pixels();
+	const uint8* SrcData = ColorCapture.get_buffer();
+	
+	if (!ColorTexture->Resource || ColorTexture->SizeX != Width || ColorTexture->SizeY != Height)
+	{
+		ColorTexture->InitCustomFormat(Width, Height, EPixelFormat::PF_B8G8R8A8, true);
+	}
+	
+	FTextureResource* TextureResource = ColorTexture->Resource;
+	auto Region = FUpdateTextureRegion2D(0, 0, 0, 0, Width, Height);
+
+	ENQUEUE_RENDER_COMMAND(UpdateTextureData)(
+		[TextureResource, Region, SrcData](FRHICommandListImmediate& RHICmdList) {
+			FTexture2DRHIRef Texture2D = TextureResource->TextureRHI ? TextureResource->TextureRHI->GetTexture2D() : nullptr;
+			if (!Texture2D)
+			{
+				return;
+			}
+			RHIUpdateTexture2D(Texture2D, 0, Region, 4, SrcData);
+		});
+
 }
 
 void UAzureKinectDevice::CaptureDepthImage()
 {
 	const k4a::image& DepthCapture = Capture.get_depth_image();
+
+	int32 Width = DepthCapture.get_width_pixels(), Height = DepthCapture.get_height_pixels();
+	const uint8* SrcData = DepthCapture.get_buffer();
+
+	if (!DepthTexture->Resource || DepthTexture->SizeX != Width || DepthTexture->SizeY != Height)
+	{
+		DepthTexture->InitCustomFormat(Width, Height, EPixelFormat::PF_R16F, true);
+	}
+
+	FTextureResource* TextureResource = DepthTexture->Resource;
+	auto Region = FUpdateTextureRegion2D(0, 0, 0, 0, Width, Height);
+
+	ENQUEUE_RENDER_COMMAND(UpdateTextureData)(
+		[TextureResource, Region, SrcData](FRHICommandListImmediate& RHICmdList) {
+			FTexture2DRHIRef Texture2D = TextureResource->TextureRHI ? TextureResource->TextureRHI->GetTexture2D() : nullptr;
+			if (!Texture2D)
+			{
+				return;
+			}
+			
+			RHIUpdateTexture2D(Texture2D, 0, Region, 1, SrcData);
+		});
+
+}
+
+void UAzureKinectDevice::CaptureInflaredImage()
+{
+	const k4a::image& InflaredCapture = Capture.get_ir_image();
+
+	int32 Width = InflaredCapture.get_width_pixels(), Height = InflaredCapture.get_height_pixels();
+	const uint8* SrcData = InflaredCapture.get_buffer();
+
+	if (!InflaredTexture->Resource || InflaredTexture->SizeX != Width || InflaredTexture->SizeY != Height)
+	{
+		InflaredTexture->InitCustomFormat(Width, Height, EPixelFormat::PF_R8, true);
+	}
+
+	FTextureResource* TextureResource = InflaredTexture->Resource;
+	auto Region = FUpdateTextureRegion2D(0, 0, 0, 0, Width, Height);
+
+	ENQUEUE_RENDER_COMMAND(UpdateTextureData)(
+		[TextureResource, Region, SrcData](FRHICommandListImmediate& RHICmdList) {
+			FTexture2DRHIRef Texture2D = TextureResource->TextureRHI ? TextureResource->TextureRHI->GetTexture2D() : nullptr;
+			if (!Texture2D)
+			{
+				return;
+			}
+
+			RHIUpdateTexture2D(Texture2D, 0, Region, 1, SrcData);
+		});
 }
 
 void UAzureKinectDevice::CalcFrameCount()

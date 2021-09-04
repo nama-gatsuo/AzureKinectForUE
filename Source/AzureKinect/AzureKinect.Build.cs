@@ -51,8 +51,9 @@ public class AzureKinect : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
-			}
-			);
+				"RenderCore",
+				"RHI",
+			});
 		
 	}
 }

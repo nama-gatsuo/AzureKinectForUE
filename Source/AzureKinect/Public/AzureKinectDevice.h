@@ -1,7 +1,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "UObject/NoExportTypes.h"
+#include "Engine/TextureRenderTarget2D.h"
+
+
 #include "k4a/k4a.hpp"
 #include "AzureKinectEnum.h"
 
@@ -25,7 +27,7 @@ public:
 	UTextureRenderTarget2D* ColorTexture;
 
 	UPROPERTY(EditAnywhere, Category = "Azure Kinect")
-	UTextureRenderTarget2D* IrTexture;
+	UTextureRenderTarget2D* InflaredTexture;
 
 	UFUNCTION(CallInEditor, Category = "Azure Kinect")
 	void LoadDevice();
@@ -51,6 +53,7 @@ public:
 	void Update();
 	void CaptureColorImage();
 	void CaptureDepthImage();
+	void CaptureInflaredImage();
 
 private:
 
@@ -60,4 +63,5 @@ private:
 	k4a::capture Capture;
 	std::chrono::milliseconds FrameTime;
 
+	FUpdateTextureRegion2D* ColorUpdateTextureRegion;
 };
