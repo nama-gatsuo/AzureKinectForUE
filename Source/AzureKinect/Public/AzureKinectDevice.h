@@ -3,9 +3,9 @@
 #include "CoreMinimal.h"
 #include "Engine/TextureRenderTarget2D.h"
 
-
 #include "k4a/k4a.hpp"
 #include "AzureKinectEnum.h"
+#include "AzureKinectDeviceThread.h"
 
 #include "AzureKinectDevice.generated.h"
 
@@ -21,19 +21,13 @@ public:
 	UAzureKinectDevice(const FObjectInitializer& ObjectInitializer);
 
 	UPROPERTY(EditAnywhere, Category = "Azure Kinect")
-	UTextureRenderTarget2D* DepthTexture;
+	UTexture2D* DepthTexture;
 
 	UPROPERTY(EditAnywhere, Category = "Azure Kinect")
-	UTextureRenderTarget2D* ColorTexture;
+	UTexture2D* ColorTexture;
 
 	UPROPERTY(EditAnywhere, Category = "Azure Kinect")
-	UTextureRenderTarget2D* InflaredTexture;
-
-	UFUNCTION(CallInEditor, Category = "Azure Kinect")
-	void LoadDevice();
-	
-	UFUNCTION(Category = "Azure Kinect")
-	static int32 GetNumConnectedDevices();
+	UTexture2D* InflaredTexture;
 
 	UPROPERTY(EditAnywhere, Category = "Azure Kinect")
 	EKinectDepthMode DepthMode;
@@ -48,14 +42,25 @@ public:
 	
 	TArray<TSharedPtr<FString>> DeviceList;
 
+	UFUNCTION(Category = "Azure Kinect")
+	static int32 GetNumConnectedDevices();
+
+	UFUNCTION(CallInEditor, Category = "Azure Kinect")
+	void LoadDevice();
+
+	UFUNCTION(CallInEditor, Category = "Azure Kinect")
 	void StartDevice();
+	
+	UFUNCTION(CallInEditor, Category = "Azure Kinect")
 	void StopDevice();
+	
 	void Update();
+
+private:
+
 	void CaptureColorImage();
 	void CaptureDepthImage();
 	void CaptureInflaredImage();
-
-private:
 
 	void CalcFrameCount();
 
@@ -63,5 +68,6 @@ private:
 	k4a::capture Capture;
 	std::chrono::milliseconds FrameTime;
 
-	FUpdateTextureRegion2D* ColorUpdateTextureRegion;
+	FAzureKinectDeviceThread* Thread;
+
 };

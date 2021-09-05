@@ -42,15 +42,19 @@ public class AzureKinect : ModuleRules
 			RuntimeDependencies.Add(k4aDllPath);
 			RuntimeDependencies.Add(k4abtDllPath);
 		}
-					
+
+		PrivateIncludePaths.AddRange(
+			new string[]
+			{
+				"AzureKinect/Private",
+			});
+
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
 				"Core",
 				"CoreUObject",
 				"Engine",
-				"Slate",
-				"SlateCore",
 				"RenderCore",
 				"RHI",
 			});
