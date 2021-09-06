@@ -17,6 +17,12 @@ public:
 	TSharedRef<SWidget> MakeWidgetForOption(TSharedPtr<FString> InOption);
 	void OnSelectionChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type);
 	FText GetCurrentItemLabel() const;
+	EVisibility OnGetPropVisibility() const;
+	EVisibility OnGetPropVisibilityNegative() const;
+	FReply OnStart();
+	FReply OnLoad();
+	FReply OnStop();
+	bool OnGetOpened() const;
 
 private:
 

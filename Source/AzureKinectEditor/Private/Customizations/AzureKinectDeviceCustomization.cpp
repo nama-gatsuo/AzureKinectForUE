@@ -32,16 +32,6 @@ void FAzureKinectDeviceCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 
 	// Customize 'AzureKinect' category
 	IDetailCategoryBuilder& OverridesCategory = DetailBuilder.EditCategory("Azure Kinect");
-	
-	{
-		// Add Custom Row
-		OverridesCategory.AddCustomRow(LOCTEXT("FilterString", "Search Filter Keywords"))
-			.WholeRowContent()
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("TestString", "This is a very temporal comment."))
-			];
-	}
 
 	{
 		// Add Custom Row
@@ -57,6 +47,7 @@ void FAzureKinectDeviceCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 			.ValueContent()
 			[
 				SNew(SComboBox<TSharedPtr<FString>>)
+				.IsEnabled_Raw(this, &FAzureKinectDeviceCustomization::OnGetOpened)
 				.OptionsSource(&(AzureKinectDevice->DeviceList))
 				.OnSelectionChanged(this, &FAzureKinectDeviceCustomization::OnSelectionChanged)
 				.OnGenerateWidget(this, &FAzureKinectDeviceCustomization::MakeWidgetForOption)
@@ -66,7 +57,48 @@ void FAzureKinectDeviceCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 					.Text(this, &FAzureKinectDeviceCustomization::GetCurrentItemLabel)
 				]
 			];
-			
+	}
+
+	{
+
+		OverridesCategory.AddCustomRow(LOCTEXT("ButtonFilterString", "Function Buttons"))
+			.NameContent()
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("ExecutionLabel", "Execution"))
+			]
+			.ValueContent()
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.Padding(FMargin(0.f, 2.f, 10.f, 2.f))
+				.AutoWidth()
+				[
+					SNew(SButton)
+					.Text(LOCTEXT("LoadButtonText", "LoadDevice"))
+					.Visibility_Raw(this, &FAzureKinectDeviceCustomization::OnGetPropVisibility)
+					.OnClicked_Raw(this, &FAzureKinectDeviceCustomization::OnLoad)
+				]
+				+ SHorizontalBox::Slot()
+				.Padding(FMargin(0.f, 2.f, 10.0f, 2.f))
+				.AutoWidth()
+				[
+					SNew(SButton)
+					.Text(LOCTEXT("StartButtonText", "StartDevice"))
+					.Visibility_Raw(this, &FAzureKinectDeviceCustomization::OnGetPropVisibility)
+					.OnClicked_Raw(this, &FAzureKinectDeviceCustomization::OnStart)
+				]
+				+ SHorizontalBox::Slot()
+				.Padding(FMargin(0.f, 0, 10.f, 2.f))
+				.AutoWidth()
+				[
+					SNew(SButton)
+					.Text(LOCTEXT("StopButtonText", "StopDevice"))
+					.Visibility_Raw(this, &FAzureKinectDeviceCustomization::OnGetPropVisibilityNegative)
+					.OnClicked_Raw(this, &FAzureKinectDeviceCustomization::OnStop)
+				]
+			];
+
 	}
 
 }
@@ -99,6 +131,39 @@ FText FAzureKinectDeviceCustomization::GetCurrentItemLabel() const
 	}
 
 	return LOCTEXT("InvalidComboEntryText", "<<Invalid option>>");	
+}
+
+EVisibility FAzureKinectDeviceCustomization::OnGetPropVisibility() const
+{
+	return AzureKinectDevice->bOpened ? EVisibility::Collapsed : EVisibility::Visible;
+}
+
+EVisibility FAzureKinectDeviceCustomization::OnGetPropVisibilityNegative() const
+{
+	return AzureKinectDevice->bOpened ? EVisibility::Visible : EVisibility::Collapsed;
+}
+
+FReply FAzureKinectDeviceCustomization::OnStart()
+{
+	AzureKinectDevice->StartDevice();
+	return FReply::Handled();
+}
+
+FReply FAzureKinectDeviceCustomization::OnLoad()
+{
+	AzureKinectDevice->LoadDevice();
+	return FReply::Handled();
+}
+
+FReply FAzureKinectDeviceCustomization::OnStop()
+{
+	AzureKinectDevice->StopDevice();
+	return FReply::Handled();
+}
+
+bool FAzureKinectDeviceCustomization::OnGetOpened() const
+{
+	return !AzureKinectDevice->bOpened;
 }
 
 #undef LOCTEXT_NAMESPACE

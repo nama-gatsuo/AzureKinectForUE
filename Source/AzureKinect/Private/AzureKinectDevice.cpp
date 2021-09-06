@@ -1,13 +1,15 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 #include "AzureKinectDevice.h"
 #include "Runtime/RHI/Public/RHI.h"
+#include "GenericPlatform/GenericPlatformMath.h"
 
 DEFINE_LOG_CATEGORY(AzureKinectDeviceLog);
 
-UAzureKinectDevice::UAzureKinectDevice():
+UAzureKinectDevice::UAzureKinectDevice() :
 	NativeDevice(nullptr),
 	Thread(nullptr),
-	DeviceIndex(-1)
+	DeviceIndex(-1),
+	bOpened(false)
 {
 	LoadDevice();
 }
@@ -48,13 +50,19 @@ void UAzureKinectDevice::LoadDevice()
 
 void UAzureKinectDevice::StartDevice()
 {
-	CalcFrameCount();
+	if (bOpened)
+	{
+		UE_LOG(AzureKinectDeviceLog, Warning, TEXT("This Device has been open."));
+		return;
+	}
 
 	if (DeviceIndex == -1)
 	{
-		UE_LOG(AzureKinectDeviceLog, Error, TEXT("No Device is selected."));
+		UE_LOG(AzureKinectDeviceLog, Warning, TEXT("No Device is selected."));
 		return;
 	}
+
+	CalcFrameCount();
 
 	try
 	{
@@ -67,28 +75,39 @@ void UAzureKinectDevice::StartDevice()
 		DeviceConfig.color_resolution = static_cast<k4a_color_resolution_t>(ColorMode);
 		DeviceConfig.camera_fps = static_cast<k4a_fps_t>(Fps);
 		DeviceConfig.color_format = k4a_image_format_t::K4A_IMAGE_FORMAT_COLOR_BGRA32;
-		
+		DeviceConfig.synchronized_images_only = true;
+		DeviceConfig.wired_sync_mode = K4A_WIRED_SYNC_MODE_STANDALONE;
+
 		NativeDevice.start_cameras(&DeviceConfig);
 
+		KinectCalibration = NativeDevice.get_calibration(DeviceConfig.depth_mode, DeviceConfig.color_resolution);
+		KinectTransformation = k4a::transformation(KinectCalibration);
+
 	}
-	catch (const k4a::error& e)
+	catch (const k4a::error& Err)
 	{
-		FString ErrStr(e.what());
 		if (NativeDevice)
 		{
 			NativeDevice.close();
 		}
 
-		UE_LOG(AzureKinectDeviceLog, Error, TEXT("k4a::error: %s"), *ErrStr);
+		UE_LOG(AzureKinectDeviceLog, Error, TEXT("k4a::error: %s"), Err.what());
 		return;
 	}
 	
 	Thread = new FAzureKinectDeviceThread(this);
 
+	bOpened = true;
 }
 
 void UAzureKinectDevice::StopDevice()
 {
+
+	if (!bOpened)
+	{
+		UE_LOG(AzureKinectDeviceLog, Warning, TEXT("KinectDevice is not running."));
+		return;
+	}
 
 	if (Thread)
 	{
@@ -101,29 +120,10 @@ void UAzureKinectDevice::StopDevice()
 		NativeDevice.stop_cameras();
 		NativeDevice.close();
 		NativeDevice = nullptr;
-		UE_LOG(AzureKinectDeviceLog, Warning, TEXT("KinectDevice Camera is Stopped and Closed"));
+		UE_LOG(AzureKinectDeviceLog, Verbose, TEXT("KinectDevice Camera is Stopped and Closed"));
 	}
 
-	if (ColorTexture)
-	{
-		ColorTexture->ReleaseResource();
-		ColorTexture->ConditionalBeginDestroy();
-		ColorTexture = nullptr;
-	}
-
-	if (DepthTexture)
-	{
-		DepthTexture->ReleaseResource();
-		DepthTexture->ConditionalBeginDestroy();
-		DepthTexture = nullptr;
-	}
-	
-	if (InflaredTexture)
-	{
-		InflaredTexture->ReleaseResource();
-		InflaredTexture->ConditionalBeginDestroy();
-		InflaredTexture = nullptr;
-	}
+	bOpened = false;
 
 }
 
@@ -134,27 +134,25 @@ int32 UAzureKinectDevice::GetNumConnectedDevices()
 
 void UAzureKinectDevice::Update()
 {
-	// Should be in threaded function
-
 	try
 	{
 		if (!NativeDevice.get_capture(&Capture, FrameTime))
 		{
-			UE_LOG(AzureKinectDeviceLog, Error, TEXT("Timed out waiting for capture."));
+			UE_LOG(AzureKinectDeviceLog, Verbose, TEXT("Timed out waiting for capture."));
 		}
 	}
-	catch (const k4a::error& e)
+	catch (const k4a::error& Err)
 	{
-		UE_LOG(AzureKinectDeviceLog, Error, TEXT("%s"), e.what());
+		UE_LOG(AzureKinectDeviceLog, Error, TEXT("%s"), Err.what());
 		return;
 	}
 
-	if (true)
+	if (ColorTexture)
 	{
 		CaptureColorImage();
 	}
 
-	if (true)
+	if (DepthTexture)
 	{
 		CaptureDepthImage();
 	}
@@ -164,19 +162,20 @@ void UAzureKinectDevice::Update()
 		CaptureInflaredImage();
 	}
 
+	Capture.reset();
+
 }
 
 void UAzureKinectDevice::CaptureColorImage()
 {
-	const k4a::image& ColorCapture = Capture.get_color_image();
+	k4a::image ColorCapture = Capture.get_color_image();
 	if (!ColorCapture.is_valid()) return;
 	
 	int32 Width = ColorCapture.get_width_pixels(), Height = ColorCapture.get_height_pixels();
 	
-	if (!ColorTexture)
+	if (ColorTexture->GetSurfaceWidth() != Width || ColorTexture->GetSurfaceHeight() != Height)
 	{
-		ColorTexture = NewObject<UTexture2D>();
-		ColorTexture = UTexture2D::CreateTransient(Width, Height, EPixelFormat::PF_B8G8R8A8, TEXT("AzureKinectColor"));
+		ColorTexture->InitCustomFormat(Width, Height, EPixelFormat::PF_B8G8R8A8, false);
 		ColorTexture->UpdateResource();
 	}	
 	else
@@ -195,28 +194,68 @@ void UAzureKinectDevice::CaptureColorImage()
 				RHIUpdateTexture2D(Texture2D, 0, Region, 4 * Region.Width, SrcData);
 			});
 	}
-	
-	
+
+	ColorCapture.reset();
 
 }
 
 void UAzureKinectDevice::CaptureDepthImage()
 {
-	const k4a::image& DepthCapture = Capture.get_depth_image();
-	if (!DepthCapture.is_valid()) return;
+	k4a::image DepthCapture = Capture.get_depth_image();
+	k4a::image ColorCapture = Capture.get_color_image();
 
-	int32 Width = DepthCapture.get_width_pixels(), Height = DepthCapture.get_height_pixels();
+	if (!DepthCapture.is_valid() || !ColorCapture.is_valid()) return;
+
+	int32 Width = ColorCapture.get_width_pixels(), Height = ColorCapture.get_height_pixels();
 	
-
-	if (!DepthTexture)
+	if (!DepthRemapped || !DepthRemapped.is_valid())
 	{
-		DepthTexture = NewObject<UTexture2D>();
-		DepthTexture = UTexture2D::CreateTransient(Width, Height, EPixelFormat::PF_R8G8B8A8, TEXT("AzureKinectDepth"));
+		DepthRemapped = k4a::image::create(K4A_IMAGE_FORMAT_DEPTH16, Width, Height, Width * static_cast<int>(sizeof(uint16_t)));
+	}
+
+	try
+	{
+		KinectTransformation.depth_image_to_color_camera(DepthCapture, &DepthRemapped);
+	}
+	catch (const k4a::error& Err)
+	{
+		UE_LOG(AzureKinectDeviceLog, Error, TEXT("k4a::error: %s"), Err.what());
+		return;
+	}
+
+	if (DepthTexture->GetSurfaceWidth() != Width || DepthTexture->GetSurfaceHeight() != Height)
+	{
+		DepthTexture->InitCustomFormat(Width, Height, EPixelFormat::PF_R8G8B8A8, true);
 		DepthTexture->UpdateResource();
 	}
 	else
 	{
-		const uint8* SrcData = DepthCapture.get_buffer();
+		uint8* S = DepthRemapped.get_buffer();
+		TArray<uint8> SrcData;
+		SrcData.Reset(Width * Height * 4);
+		for (int hi = 0; hi < Height; hi++)
+		{
+			for (int wi = 0; wi < Width; wi++)
+			{
+				int index = hi * Width + wi;
+				
+				if (S[index * 2] + S[index * 2 + 1] > 0)
+				{
+					SrcData.Push(S[index * 2]);
+					SrcData.Push(S[index * 2 + 1]);
+					SrcData.Push(0);
+					SrcData.Push(255);
+				}
+				else
+				{
+					SrcData.Push(0);
+					SrcData.Push(0);
+					SrcData.Push(255);
+					SrcData.Push(255);
+				}	
+			}
+		}
+		
 		FTextureResource* TextureResource = DepthTexture->Resource;
 		auto Region = FUpdateTextureRegion2D(0, 0, 0, 0, Width, Height);
 
@@ -227,9 +266,13 @@ void UAzureKinectDevice::CaptureDepthImage()
 				{
 					return;
 				}
-				RHIUpdateTexture2D(Texture2D, 0, Region, 4 * Region.Width, SrcData);
+				RHIUpdateTexture2D(Texture2D, 0, Region, 4 * Region.Width, SrcData.GetData());
+
 			});
 	}
+
+	DepthCapture.reset();
+	ColorCapture.reset();
 
 }
 
@@ -240,15 +283,39 @@ void UAzureKinectDevice::CaptureInflaredImage()
 
 	int32 Width = InflaredCapture.get_width_pixels(), Height = InflaredCapture.get_height_pixels();
 
-	if (!InflaredTexture)
+	if (InflaredTexture->GetSurfaceWidth() != Width || InflaredTexture->GetSurfaceWidth() != Height)
 	{
-		InflaredTexture = NewObject<UTexture2D>();
-		InflaredTexture = UTexture2D::CreateTransient(Width, Height, EPixelFormat::PF_R8G8, TEXT("AzureKinectInflared"));
-		InflaredTexture->UpdateResource();
+		InflaredTexture->InitCustomFormat(Width, Height, EPixelFormat::PF_R8G8, true);
+		DepthTexture->UpdateResource();
 	}
 	else
 	{
-		const uint8* SrcData = InflaredCapture.get_buffer();
+		const uint8* S = InflaredCapture.get_buffer();
+		TArray<uint8> SrcData;
+		SrcData.Reset(Width * Height * 4);
+		for (int hi = 0; hi < Height; hi++)
+		{
+			for (int wi = 0; wi < Width; wi++)
+			{
+				int index = hi * Width + wi;
+
+				if (S[index * 2] + S[index * 2 + 1] > 0)
+				{
+					SrcData.Push(S[index * 2]);
+					SrcData.Push(S[index * 2 + 1]);
+					SrcData.Push(0);
+					SrcData.Push(255);
+				}
+				else
+				{
+					SrcData.Push(0);
+					SrcData.Push(0);
+					SrcData.Push(255);
+					SrcData.Push(255);
+				}
+			}
+		}
+		
 		FTextureResource* TextureResource = InflaredTexture->Resource;
 		auto Region = FUpdateTextureRegion2D(0, 0, 0, 0, Width, Height);
 
@@ -260,7 +327,7 @@ void UAzureKinectDevice::CaptureInflaredImage()
 					return;
 				}
 
-				RHIUpdateTexture2D(Texture2D, 0, Region, 2 * Region.Width, SrcData);
+				RHIUpdateTexture2D(Texture2D, 0, Region, 2 * Region.Width, SrcData.GetData());
 			});
 	}
 	
@@ -283,5 +350,5 @@ void UAzureKinectDevice::CalcFrameCount()
 	default:
 		break;
 	}
-	FrameTime = std::chrono::milliseconds((int)FrameTimeInMilli);
+	FrameTime = std::chrono::milliseconds(FGenericPlatformMath::CeilToInt(FrameTimeInMilli));
 }

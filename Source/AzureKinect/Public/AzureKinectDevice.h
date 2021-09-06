@@ -21,37 +21,41 @@ public:
 	UAzureKinectDevice(const FObjectInitializer& ObjectInitializer);
 
 	UPROPERTY(EditAnywhere, Category = "Azure Kinect")
-	UTexture2D* DepthTexture;
+	UTextureRenderTarget2D* DepthTexture;
 
 	UPROPERTY(EditAnywhere, Category = "Azure Kinect")
-	UTexture2D* ColorTexture;
+	UTextureRenderTarget2D* ColorTexture;
 
 	UPROPERTY(EditAnywhere, Category = "Azure Kinect")
-	UTexture2D* InflaredTexture;
+	UTextureRenderTarget2D* InflaredTexture;
 
-	UPROPERTY(EditAnywhere, Category = "Azure Kinect")
+	UPROPERTY(EditAnywhere, Category = "Azure Kinect", meta = (EditCondition = "!bOpened"))
 	EKinectDepthMode DepthMode;
 
-	UPROPERTY(EditAnywhere, Category = "Azure Kinect")
+	UPROPERTY(EditAnywhere, Category = "Azure Kinect", meta = (EditCondition = "!bOpened"))
 	EKinectColorResolution ColorMode;
 
-	UPROPERTY(EditAnywhere, Category = "Azure Kinect")
+	UPROPERTY(EditAnywhere, Category = "Azure Kinect", meta = (EditCondition = "!bOpened"))
 	EKinectFps Fps = EKinectFps::PER_SECOND_30;
 
+	UPROPERTY(BlueprintReadWrite, Category = "Azure Kinect")
 	int32 DeviceIndex = -1;
 	
 	TArray<TSharedPtr<FString>> DeviceList;
+	
+	UPROPERTY(BlueprintReadOnly, Category = "Azure Kinect")
+	bool bOpened;
 
-	UFUNCTION(Category = "Azure Kinect")
+	UFUNCTION(BlueprintCallable, Category = "Azure Kinect")
 	static int32 GetNumConnectedDevices();
 
-	UFUNCTION(CallInEditor, Category = "Azure Kinect")
+	UFUNCTION(BlueprintCallable, Category = "Azure Kinect")
 	void LoadDevice();
 
-	UFUNCTION(CallInEditor, Category = "Azure Kinect")
+	UFUNCTION(BlueprintCallable, Category = "Azure Kinect")
 	void StartDevice();
 	
-	UFUNCTION(CallInEditor, Category = "Azure Kinect")
+	UFUNCTION(BlueprintCallable, Category = "Azure Kinect")
 	void StopDevice();
 	
 	void Update();
@@ -67,6 +71,9 @@ private:
 	k4a::device NativeDevice;
 	k4a::capture Capture;
 	std::chrono::milliseconds FrameTime;
+	k4a::image DepthRemapped;
+	k4a::calibration KinectCalibration;
+	k4a::transformation KinectTransformation;
 
 	FAzureKinectDeviceThread* Thread;
 
