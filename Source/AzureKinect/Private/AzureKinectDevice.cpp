@@ -39,10 +39,9 @@ void UAzureKinectDevice::LoadDevice()
 				DeviceList.Add(MakeShared<FString>(Device.get_serialnum().c_str()));
 				Device.close();
 			}
-			catch (const k4a::error& e)
+			catch (const k4a::error& Err)
 			{
-				FString ErrStr(e.what());
-				UE_LOG(AzureKinectDeviceLog, Error, TEXT("k4a::error: %s"), *ErrStr);
+				UE_LOG(AzureKinectDeviceLog, Error, TEXT("Can't load: %s"), TCHAR_TO_UTF8(ANSI_TO_TCHAR(Err.what())));
 			}
 		}
 	}
@@ -56,6 +55,7 @@ void UAzureKinectDevice::StartDevice()
 		return;
 	}
 
+	
 	if (DeviceIndex == -1)
 	{
 		UE_LOG(AzureKinectDeviceLog, Warning, TEXT("No Device is selected."));
@@ -91,7 +91,7 @@ void UAzureKinectDevice::StartDevice()
 			NativeDevice.close();
 		}
 
-		UE_LOG(AzureKinectDeviceLog, Error, TEXT("k4a::error: %s"), Err.what());
+		UE_LOG(AzureKinectDeviceLog, Error, TEXT("Cant't open: %s"), Err.what());
 		return;
 	}
 	
@@ -143,7 +143,7 @@ void UAzureKinectDevice::Update()
 	}
 	catch (const k4a::error& Err)
 	{
-		UE_LOG(AzureKinectDeviceLog, Error, TEXT("%s"), Err.what());
+		UE_LOG(AzureKinectDeviceLog, Error, TEXT("Can't capture frame: %s"), Err.what());
 		return;
 	}
 
@@ -219,7 +219,7 @@ void UAzureKinectDevice::CaptureDepthImage()
 	}
 	catch (const k4a::error& Err)
 	{
-		UE_LOG(AzureKinectDeviceLog, Error, TEXT("k4a::error: %s"), Err.what());
+		UE_LOG(AzureKinectDeviceLog, Error, TEXT("Cant't transform: %s"), Err.what());
 		return;
 	}
 
