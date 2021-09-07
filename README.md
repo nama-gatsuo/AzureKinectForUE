@@ -49,7 +49,7 @@ float DepthSample = (G * 256.0 + R) * 256.0; // millimetor
 ```
 // In C++
 uint8 R = Sample.R, G = Sample.G;
-uint16 DepthSample = G << 8 + R;  // millimetor
+uint16 DepthSample = (R << 8) + G;  // millimetor
 ```
 
 Depth pixel from Azure Kinect SDK is originally a single `uint16` in millimetor. But `RenderTarget2D` can't store `uint16` as texture (`EPixelFormat::PF_R16_UINT` doesn't work for RenderTarget). 
