@@ -43,7 +43,7 @@ A: `0xFF` (Constant value )
 Thus we need conversion to acquire orignal depth samples.
 ```
 // In MaterialEditor or Niagara, sample values are normalized to 0-1.
-float DepthSample = (G * 256.0 + R) * 256.0; // millimetor
+float DepthSample = (R * 256.0 + G) * 256.0; // millimetor
 ```
 
 ```
