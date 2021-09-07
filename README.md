@@ -32,6 +32,29 @@ Mainly for depth and color textures creation from Kinect's raw feed.
 
 ![](./Docs/animation.gif)
 
+## Notice
+
+Depthe data are stored `RenderTarget2D` into standard 8bit RGBA texture.  
+R: first 8bit as `uint8` of original `uint16` sample  
+G: last 8bit as `uint8` of original `uint16` sample  
+B: `0x00` or `0xFF` (if depth sample is invalid)  
+A: `0xFF` (Constant value )
+
+Thus we need conversion to acquire orignal depth samples.
+```
+// In MaterialEditor or Niagara, sample values are normalized to 0-1.
+float DepthSample = (G * 256.0 + R) * 256.0; // millimetor
+```
+
+```
+// In C++
+uint8 R = Sample.R, G = Sample.G;
+uint16 DepthSample = G << 8 + R;  // millimetor
+```
+
+Depth pixel from Azure Kinect SDK is originally a single `uint16` in millimetor. But `RenderTarget2D` can't store `uint16` as texture (`EPixelFormat::PF_R16_UINT` doesn't work for RenderTarget). 
+
+
 # Reference
 
 Existing plugin for Azure Kinect
