@@ -9,8 +9,8 @@ Mainly for depth and color textures creation from Kinect's raw feed.
 
 * Platform: Win64
 * Azure Kinect SDK `Azure Kinect SDK v1.4.1` is installed
-    * Download frome [here](https://github.com/microsoft/Azure-Kinect-Sensor-SDK/blob/develop/docs/usage.md)
-    * Also an env variable `AZUREKINECT_SDK` that points to the Azure Kinect SDK root path should be registered. Otherwise this plugin cannot be neither built or open. 
+    * Download from [here](https://github.com/microsoft/Azure-Kinect-Sensor-SDK/blob/develop/docs/usage.md)
+    * Also an env variable `AZUREKINECT_SDK` that points to the Azure Kinect SDK root path should be registered. Otherwise this plugin cannot be neither built nor open. 
 * Unreal Engine 4.27~
     * Only tested with 4.27. May work with lower.
 
@@ -38,7 +38,7 @@ Depthe data are stored `RenderTarget2D` into standard 8bit RGBA texture.
 R: first 8bit as `uint8` of original `uint16` sample  
 G: last 8bit as `uint8` of original `uint16` sample  
 B: `0x00` or `0xFF` (if depth sample is invalid)  
-A: `0xFF` (Constant value )
+A: `0xFF` (Constant value)
 
 Thus we need conversion to acquire orignal depth samples.
 ```
