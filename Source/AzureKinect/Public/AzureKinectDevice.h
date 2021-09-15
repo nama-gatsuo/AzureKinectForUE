@@ -43,7 +43,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Azure Kinect")
 	EKinectSensorOrientation SensorOrientation = EKinectSensorOrientation::DEFAULT;
 
-	UPROPERTY(EditAnywhere, Category = "Azure Kinect")
+	// UPROPERTY(EditAnywhere, Category = "Azure Kinect")
 	TArray<TSoftObjectPtr<ASkeletalMeshActor>> SkeltalMeshes;
 
 	UPROPERTY(BlueprintReadWrite, Category = "Azure Kinect")
@@ -66,10 +66,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Azure Kinect")
 	bool IsOpen() const { return bOpen; }
 
-	UFUNCTION(BlueprintCallable, Category = "Azure Kinect")
+	// UFUNCTION(BlueprintCallable, Category = "Azure Kinect")
 	int32 GetNumTrackedBodies() const;
 
-	UFUNCTION(BlueprintCallable, Category = "Azure Kinect")
+	// UFUNCTION(BlueprintCallable, Category = "Azure Kinect")
 	TArray<FTransform> GetSkeltonJoints(int32 BodyIndex) const;
 
 	void Update();
