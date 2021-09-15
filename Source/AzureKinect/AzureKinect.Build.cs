@@ -12,7 +12,7 @@ public class AzureKinect : ModuleRules
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			string sdkPath = System.Environment.GetEnvironmentVariable("AZUREKINECT_SDK");
-			// string bodySdkPath = System.Environment.GetEnvironmentVariable("AZUREKINECT_BODY_SDK");
+			string bodySdkPath = System.Environment.GetEnvironmentVariable("AZUREKINECT_BODY_SDK");
 
 			PublicIncludePaths.AddRange(
 				new string[] {
@@ -24,13 +24,13 @@ public class AzureKinect : ModuleRules
 				new string[] {
 					Path.Combine(sdkPath, "sdk", "windows-desktop", "amd64", "release", "lib", "k4a.lib"),
 					Path.Combine(sdkPath, "sdk", "windows-desktop", "amd64", "release", "lib", "k4arecord.lib"),
-					// Path.Combine(bodySdkPath, "sdk", "windows-desktop", "amd64", "release", "lib", "k4abt.lib")
+					 Path.Combine(bodySdkPath, "sdk", "windows-desktop", "amd64", "release", "lib", "k4abt.lib")
 				});
 			
 			string depthEngineDllPath = Path.Combine(sdkPath, "sdk", "windows-desktop", "amd64", "release", "bin", "depthengine_2_0.dll");
 			string k4aDllPath = Path.Combine(sdkPath, "sdk", "windows-desktop", "amd64", "release", "bin", "k4a.dll");
-			// string k4abtDllPath = Path.Combine(bodySdkPath, "sdk", "windows-desktop", "amd64", "release", "bin", "k4abt.dll");
-			
+			string k4abtDllPath = Path.Combine(bodySdkPath, "sdk", "windows-desktop", "amd64", "release", "bin", "k4abt.dll");
+
 			PublicDelayLoadDLLs.AddRange(
 				new string[] {
 					depthEngineDllPath,
@@ -40,7 +40,7 @@ public class AzureKinect : ModuleRules
 
 			RuntimeDependencies.Add(depthEngineDllPath);
 			RuntimeDependencies.Add(k4aDllPath);
-			// RuntimeDependencies.Add(k4abtDllPath);
+			RuntimeDependencies.Add(k4abtDllPath);
 		}
 
 		PrivateIncludePaths.AddRange(

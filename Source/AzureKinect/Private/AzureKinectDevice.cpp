@@ -2,6 +2,7 @@
 #include "AzureKinectDevice.h"
 #include "Runtime/RHI/Public/RHI.h"
 #include "GenericPlatform/GenericPlatformMath.h"
+#include "AzureKinectSkeltonAnim.h"
 
 DEFINE_LOG_CATEGORY(AzureKinectDeviceLog);
 
@@ -9,7 +10,8 @@ UAzureKinectDevice::UAzureKinectDevice() :
 	NativeDevice(nullptr),
 	Thread(nullptr),
 	DeviceIndex(-1),
-	bOpened(false)
+	bOpen(false),
+	NumTrackedBodies(0)
 {
 	LoadDevice();
 }
@@ -45,11 +47,12 @@ void UAzureKinectDevice::LoadDevice()
 			}
 		}
 	}
+	
 }
 
 void UAzureKinectDevice::StartDevice()
 {
-	if (bOpened)
+	if (bOpen)
 	{
 		UE_LOG(AzureKinectDeviceLog, Warning, TEXT("This Device has been open."));
 		return;
@@ -83,6 +86,11 @@ void UAzureKinectDevice::StartDevice()
 		KinectCalibration = NativeDevice.get_calibration(DeviceConfig.depth_mode, DeviceConfig.color_resolution);
 		KinectTransformation = k4a::transformation(KinectCalibration);
 
+		k4abt_tracker_configuration_t TrackerConfig = K4ABT_TRACKER_CONFIG_DEFAULT;
+		TrackerConfig.sensor_orientation = static_cast<k4abt_sensor_orientation_t>(SensorOrientation);
+
+		// Retain body tracker
+		BodyTracker = k4abt::tracker::create(KinectCalibration, TrackerConfig);
 	}
 	catch (const k4a::error& Err)
 	{
@@ -91,19 +99,20 @@ void UAzureKinectDevice::StartDevice()
 			NativeDevice.close();
 		}
 
-		UE_LOG(AzureKinectDeviceLog, Error, TEXT("Cant't open: %s"), Err.what());
+		FString Msg(ANSI_TO_TCHAR(Err.what()));
+		UE_LOG(AzureKinectDeviceLog, Error, TEXT("Cant't open: %s"), *Msg);
 		return;
 	}
 	
 	Thread = new FAzureKinectDeviceThread(this);
 
-	bOpened = true;
+	bOpen = true;
 }
 
 void UAzureKinectDevice::StopDevice()
 {
 
-	if (!bOpened)
+	if (!bOpen)
 	{
 		UE_LOG(AzureKinectDeviceLog, Warning, TEXT("KinectDevice is not running."));
 		return;
@@ -123,7 +132,7 @@ void UAzureKinectDevice::StopDevice()
 		UE_LOG(AzureKinectDeviceLog, Verbose, TEXT("KinectDevice Camera is Stopped and Closed"));
 	}
 
-	bOpened = false;
+	bOpen = false;
 
 }
 
@@ -132,8 +141,27 @@ int32 UAzureKinectDevice::GetNumConnectedDevices()
 	return k4a_device_get_installed_count();
 }
 
+int32 UAzureKinectDevice::GetNumTrackedBodies() const
+{
+	return NumTrackedBodies;
+}
+
+TArray<FTransform> UAzureKinectDevice::GetSkeltonJoints(int32 BodyIndex) const
+{
+	if (BodyIndex >= TrackedJoints.Num())
+	{
+		return TArray<FTransform>();
+	}
+	else
+	{
+		return TrackedJoints[BodyIndex];
+	}
+	
+}
+
 void UAzureKinectDevice::Update()
 {
+	// Threaded function
 	try
 	{
 		if (!NativeDevice.get_capture(&Capture, FrameTime))
@@ -143,7 +171,8 @@ void UAzureKinectDevice::Update()
 	}
 	catch (const k4a::error& Err)
 	{
-		UE_LOG(AzureKinectDeviceLog, Error, TEXT("Can't capture frame: %s"), Err.what());
+		FString Msg(ANSI_TO_TCHAR(Err.what()));
+		UE_LOG(AzureKinectDeviceLog, Error, TEXT("Can't capture frame: %s"), *Msg);
 		return;
 	}
 
@@ -157,9 +186,14 @@ void UAzureKinectDevice::Update()
 		CaptureDepthImage();
 	}
 	
-	if (false)
+	if (InflaredTexture)
 	{
 		CaptureInflaredImage();
+	}
+
+	if (true)
+	{
+		UpdateSkeltons();
 	}
 
 	Capture.reset();
@@ -176,6 +210,7 @@ void UAzureKinectDevice::CaptureColorImage()
 	if (ColorTexture->GetSurfaceWidth() != Width || ColorTexture->GetSurfaceHeight() != Height)
 	{
 		ColorTexture->InitCustomFormat(Width, Height, EPixelFormat::PF_B8G8R8A8, false);
+		ColorTexture->RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA8;
 		ColorTexture->UpdateResource();
 	}	
 	else
@@ -219,13 +254,15 @@ void UAzureKinectDevice::CaptureDepthImage()
 	}
 	catch (const k4a::error& Err)
 	{
-		UE_LOG(AzureKinectDeviceLog, Error, TEXT("Cant't transform: %s"), Err.what());
+		FString Msg(ANSI_TO_TCHAR(Err.what()));
+		UE_LOG(AzureKinectDeviceLog, Error, TEXT("Cant't transform Depth to Color: %s"), *Msg);
 		return;
 	}
 
 	if (DepthTexture->GetSurfaceWidth() != Width || DepthTexture->GetSurfaceHeight() != Height)
 	{
 		DepthTexture->InitCustomFormat(Width, Height, EPixelFormat::PF_R8G8B8A8, true);
+		DepthTexture->RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA8;
 		DepthTexture->UpdateResource();
 	}
 	else
@@ -238,8 +275,11 @@ void UAzureKinectDevice::CaptureDepthImage()
 			for (int wi = 0; wi < Width; wi++)
 			{
 				int index = hi * Width + wi;
+				uint16 R = S[index * 2];
+				uint16 G = S[index * 2 + 1];
 				
-				if (S[index * 2] + S[index * 2 + 1] > 0)
+				uint16 Sample = R << 8 | G;
+				if (Sample > 0)
 				{
 					SrcData.Push(S[index * 2]);
 					SrcData.Push(S[index * 2 + 1]);
@@ -248,8 +288,8 @@ void UAzureKinectDevice::CaptureDepthImage()
 				}
 				else
 				{
-					SrcData.Push(0);
-					SrcData.Push(0);
+					SrcData.Push(S[index * 2]);
+					SrcData.Push(S[index * 2 + 1]);
 					SrcData.Push(255);
 					SrcData.Push(255);
 				}	
@@ -285,8 +325,9 @@ void UAzureKinectDevice::CaptureInflaredImage()
 
 	if (InflaredTexture->GetSurfaceWidth() != Width || InflaredTexture->GetSurfaceWidth() != Height)
 	{
-		InflaredTexture->InitCustomFormat(Width, Height, EPixelFormat::PF_R8G8, true);
-		DepthTexture->UpdateResource();
+		InflaredTexture->InitCustomFormat(Width, Height, EPixelFormat::PF_R8G8B8A8, true);
+		InflaredTexture->RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA8;
+		InflaredTexture->UpdateResource();
 	}
 	else
 	{
@@ -331,6 +372,216 @@ void UAzureKinectDevice::CaptureInflaredImage()
 			});
 	}
 	
+}
+
+bool UAzureKinectDevice::ValidateSkelton(TSoftObjectPtr<ASkeletalMeshActor> Skelton)
+{
+	if (!Skelton)
+	{
+		UE_LOG(AzureKinectDeviceLog, Error, TEXT("Skelton is null."));
+		return false;
+	}
+
+	USkeletalMeshComponent* Component = Skelton->GetSkeletalMeshComponent();
+	if (Component->GetAnimationMode() != EAnimationMode::AnimationBlueprint)
+	{
+		FString Name = Skelton->GetName();
+		UE_LOG(AzureKinectDeviceLog, Error, TEXT("Skelton %s Animation mode is not AnimBP."), *Name);
+		return false;
+	}
+	UAnimInstance* AnimInstance = Component->GetAnimInstance();
+	if (!AnimInstance)
+	{
+		UE_LOG(AzureKinectDeviceLog, Error, TEXT("AnimInstance is null."));
+		return false;
+	}
+
+	UAzureKinectSkeltonAnim* AzureKinectAnim = Cast<UAzureKinectSkeltonAnim>(AnimInstance);
+	if (!AzureKinectAnim)
+	{
+		FString SkeltonName = Skelton->GetName();
+		FString AnimClassName = AnimInstance->GetName();
+
+		UE_LOG(AzureKinectDeviceLog, Error, 
+			TEXT("Skelton's AnimBP ( %s [ %s ] ) is not inherited from AzureKinectSkeltonAnim."),
+			*SkeltonName, *AnimClassName);
+		return false;
+	}
+	
+	return true;
+}
+
+void UAzureKinectDevice::UpdateSkeltons()
+{
+	if (SkeltalMeshes.Num() > 0)
+	{
+		k4abt::frame BodyFrame = nullptr;
+		TArray<int32> BodyIDs;
+		
+		try
+		{
+			if (!BodyTracker.enqueue_capture(Capture, FrameTime))
+			{
+				UE_LOG(AzureKinectDeviceLog, Warning, TEXT("Failed adding capture to tracker process queue"));
+				return;
+			}
+			
+			if (!BodyTracker.pop_result(&BodyFrame, FrameTime))
+			{
+				UE_LOG(AzureKinectDeviceLog, Warning, TEXT("Failed Tracker pop body frame"));
+				return;
+			}
+		}
+		catch (const k4a::error& Err)
+		{
+			FString Msg(ANSI_TO_TCHAR(Err.what()));
+			UE_LOG(AzureKinectDeviceLog, Error, TEXT("Couldn't get Body Frame: %s"), *Msg);
+		}
+
+		int32 NumBodies = BodyFrame.get_num_bodies();
+
+		TArray<TArray<FTransform>> BodyJoints;
+		BodyJoints.Empty(NumBodies);
+		// UE_LOG(AzureKinectDeviceLog, Verbose, TEXT("%d body(s) deteceted"), NumTrackedBodies);
+
+		for (int32 i = 0; i < FMath::Min(NumBodies, SkeltalMeshes.Num()); i++)
+		{
+
+			k4abt_body_t Body;
+			try
+			{
+				BodyFrame.get_body_skeleton(i, Body.skeleton);
+				Body.id = BodyFrame.get_body_id(i);
+			}
+			catch (const k4a::error& Err)
+			{
+				FString Msg(ANSI_TO_TCHAR(Err.what()));
+				UE_LOG(AzureKinectDeviceLog, Error, TEXT("Couldn't get Body Skeleton: %s"), *Msg);
+				continue;
+			}
+
+			{
+				TArray<FTransform> Joints;
+				Joints.Empty(K4ABT_JOINT_COUNT);
+				for (int32 j = 0; j < K4ABT_JOINT_COUNT; j++)
+				{
+					Joints.Push(JointToTransform(Body.skeleton.joints[j], j));
+				}
+				
+				BodyJoints.Push(Joints);
+				BodyIDs.Push(Body.id);
+			}
+
+		}
+		
+		BodyFrame.reset();
+		
+		{
+			// Assure updating AnimInstance is thread-safe
+			FScopeLock Lock(Thread->GetCriticalSection());
+
+			TrackedJoints.Empty();
+			int32 i = 0;
+			for (; i < FMath::Min(NumBodies, SkeltalMeshes.Num()); i++)
+			{
+				if (!ValidateSkelton(SkeltalMeshes[i]))
+				{
+					continue;
+				}
+				UAzureKinectSkeltonAnim* Anim = Cast<UAzureKinectSkeltonAnim>(SkeltalMeshes[i]->GetSkeletalMeshComponent()->GetAnimInstance());
+				Anim->SetBodyID(BodyIDs[i]);
+				Anim->SetJoints(BodyJoints[i]);
+
+				TrackedJoints.Push(BodyJoints[i]);
+			}
+			NumTrackedBodies = i;
+		}
+
+	}
+}
+
+FTransform UAzureKinectDevice::JointToTransform(const k4abt_joint_t& Joint, int32 Index)
+{
+
+	/**
+	 * Convert Azure Kinect Depth and Color camera co-ordinate system
+	 * to Unreal co-ordinate system
+	 * @see https://docs.microsoft.com/en-us/azure/kinect-dk/coordinate-systems
+	 *
+	 * Kinect [mm]				Unreal [cm]
+	 * --------------------------------------
+	 * +ve X-axis		Right		+ve Y-axis
+	 * +ve Y-axis		Down		-ve Z-axis
+	 * +ve Z-axis		Forward		+ve X-axis
+	*/
+	FVector Position(Joint.position.xyz.x, Joint.position.xyz.z, - Joint.position.xyz.y);
+	Position *= 0.1f;
+
+	/**
+	 * Convert the Orientation from Kinect co-ordinate system to Unreal co-ordinate system.
+	 * We negate the x, y components of the JointQuaternion since we are converting from
+	 * Kinect's Right Hand orientation to Unreal's Left Hand orientation.
+	 */
+	FQuat Quat(
+		- Joint.orientation.wxyz.z,
+		- Joint.orientation.wxyz.x,
+		Joint.orientation.wxyz.y,
+		Joint.orientation.wxyz.w
+	);
+	
+	Quat = AlignJointOrientation(Quat, Index);
+
+	
+	return FTransform(Quat, Position);
+}
+
+FQuat UAzureKinectDevice::AlignJointOrientation(const FQuat& Quat, int32 Index)
+{
+	/**
+	 * Map the Azure Kinect joint orientation to Unreal Mannequin.
+	 * @see https://docs.microsoft.com/en-us/azure/kinect-dk/body-joints
+	 *
+	 * The pelvis, spine, chest, legs, neck and head joints extend along X-axis which is
+	 * along the Z-axis in UE4 and the joints forward axis (Y-axis) is along the X-axis in UE4.
+	 *
+	 * The shoulder joints extend along X-axis, their forward axis (Y-axis) is along the
+	 * X-axis in UE4 and their up axis (Z-axis) is along Z-axis in UE4.
+	 *
+	 * The elbow joints are similar to the shoulders, but the same mapping didn't work for them.
+	 *
+	 * The wrist joints are a bit tricky and I couldn't get them to work correctly.
+	*/
+#define JOINT_ID(Name) static_cast<uint8>(EKinectBodyJoint::Name)
+
+	if (
+		Index <= JOINT_ID(NECK) ||
+		(Index >= JOINT_ID(HEAD) && Index <= JOINT_ID(EAR_RIGHT)) ||
+		(Index >= JOINT_ID(HIP_LEFT) && Index <= JOINT_ID(FOOT_LEFT)) ||
+		(Index >= JOINT_ID(HIP_RIGHT) && Index <= JOINT_ID(FOOT_RIGHT))
+		)
+	{
+		return FRotationMatrix::MakeFromXZ(Quat.GetAxisY(), - Quat.GetAxisX()).ToQuat();
+	}
+	else if (
+		Index == JOINT_ID(CLAVICLE_LEFT) ||
+		Index == JOINT_ID(CLAVICLE_RIGHT) ||
+		Index == JOINT_ID(SHOULDER_LEFT) ||
+		Index == JOINT_ID(SHOULDER_RIGHT))
+	{
+		return FRotationMatrix::MakeFromXZ(Quat.GetAxisY(), Quat.GetAxisZ()).ToQuat();
+	}
+	else if (
+		Index == JOINT_ID(ELBOW_LEFT) || 
+		Index == JOINT_ID(WRIST_LEFT) ||
+		Index == JOINT_ID(ELBOW_RIGHT) ||
+		Index == JOINT_ID(WRIST_RIGHT))
+	{
+		return FRotationMatrix::MakeFromXZ(Quat.GetAxisY(), - Quat.GetAxisZ()).ToQuat();
+	}
+	
+	return Quat;
+
+#undef JOINT_ID
 }
 
 void UAzureKinectDevice::CalcFrameCount()

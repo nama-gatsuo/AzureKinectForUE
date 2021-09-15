@@ -26,6 +26,7 @@ public class AzureKinectEditor : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
+				"PropertyEditor",
 				"InputCore",
 				"AzureKinect",
 				"UnrealEd",

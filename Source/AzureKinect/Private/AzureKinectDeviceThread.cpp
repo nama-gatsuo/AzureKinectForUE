@@ -63,3 +63,8 @@ void FAzureKinectDeviceThread::EnsureCompletion()
 	}
 
 }
+
+FCriticalSection* FAzureKinectDeviceThread::GetCriticalSection()
+{
+	return &CriticalSection;
+}

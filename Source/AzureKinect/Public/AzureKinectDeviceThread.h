@@ -22,6 +22,8 @@ public:
 	/** Stops the threadand waits for its completion. */
 	void EnsureCompletion();
 
+	FCriticalSection* GetCriticalSection();
+
 private:
 	/** Thread handle.Control the thread using this, with operators like Killand Suspend */
 	FRunnableThread* Thread;
@@ -31,5 +33,8 @@ private:
 
 	/** The device that starts this thread. */
 	UAzureKinectDevice* KinectDevice;
+
+	/** To be used for UScopeLock */
+	FCriticalSection CriticalSection;
 
 };

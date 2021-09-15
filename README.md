@@ -42,14 +42,14 @@ A: `0xFF` (Constant value)
 
 Thus we need conversion to acquire orignal depth samples.
 ```
-// In MaterialEditor or Niagara, sample values are normalized to 0-1.
+// In MaterialEditor or Niagara, sample values in Depth texture are normalized to 0-1.
 float DepthSample = (R * 256.0 + G) * 256.0; // millimetor
 ```
 
 ```
 // In C++
 uint8 R = Sample.R, G = Sample.G;
-uint16 DepthSample = (R << 8) + G;  // millimetor
+uint16 DepthSample = R << 8 | G;  // millimetor
 ```
 
 Depth pixel from Azure Kinect SDK is originally a single `uint16` in millimetor. But `RenderTarget2D` can't store `uint16` as texture (`EPixelFormat::PF_R16_UINT` doesn't work for RenderTarget). 
@@ -58,6 +58,6 @@ Depth pixel from Azure Kinect SDK is originally a single `uint16` in millimetor.
 # Reference
 
 Existing plugin for Azure Kinect
-* [secretlocation/azure-kinect-unreal](https://github.com/https://github.com/secretlocation/azure-kinect-unreal/azure-kinect-unreal)
+* [secretlocation/azure-kinect-unreal](https://github.com/secretlocation/azure-kinect-unreal/)
     * Body tracking only, not support point cloud and texture(s)
     * Referred a lot from this repo
