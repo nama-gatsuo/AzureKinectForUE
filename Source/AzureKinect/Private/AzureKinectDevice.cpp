@@ -160,6 +160,7 @@ int32 UAzureKinectDevice::GetNumConnectedDevices()
 
 int32 UAzureKinectDevice::GetNumTrackedSkeletons() const
 {
+	FScopeLock Lock(Thread->GetCriticalSection());
 	if (!bSkeletonTracking)
 	{
 		UE_LOG(AzureKinectDeviceLog, Error, TEXT("GetNumTrackedBodies: Skeleton Tracking is disabled!"));
@@ -170,6 +171,8 @@ int32 UAzureKinectDevice::GetNumTrackedSkeletons() const
 
 FAzureKinectSkeleton UAzureKinectDevice::GetSkeleton(int32 Index) const
 {
+	FScopeLock Lock(Thread->GetCriticalSection());
+
 	if (!bSkeletonTracking)
 	{
 		UE_LOG(AzureKinectDeviceLog, Error, TEXT("GetSkeleton: Skeleton Tracking is disabled!"));
@@ -186,6 +189,11 @@ FAzureKinectSkeleton UAzureKinectDevice::GetSkeleton(int32 Index) const
 		return FAzureKinectSkeleton();
 	}
 	
+}
+
+const TArray<FAzureKinectSkeleton>& UAzureKinectDevice::GetSkeletons() const {
+	FScopeLock Lock(Thread->GetCriticalSection());
+	return Skeletons;
 }
 
 void UAzureKinectDevice::UpdateAsync()
@@ -231,11 +239,57 @@ void UAzureKinectDevice::UpdateAsync()
 
 void UAzureKinectDevice::CaptureColorImage()
 {
-	k4a::image ColorCapture = Capture.get_color_image();
-	if (!ColorCapture.is_valid()) return;
-	
-	int32 Width = ColorCapture.get_width_pixels(), Height = ColorCapture.get_height_pixels();
-	if (Width == 0 || Height == 0) return;
+	int32 Width = 0, Height = 0;
+	uint8* SourceBuffer;
+
+	if (RemapMode == EKinectRemap::COLOR_TO_DEPTH)
+	{
+		k4a::image DepthCapture = Capture.get_depth_image();
+		k4a::image ColorCapture = Capture.get_color_image();
+
+		if (!DepthCapture.is_valid() || !ColorCapture.is_valid()) return;
+
+		Width = DepthCapture.get_width_pixels();
+		Height = DepthCapture.get_height_pixels();
+
+		if (Width == 0 || Height == 0) return;
+
+		//
+		if (!RemapImage || !RemapImage.is_valid())
+		{
+			RemapImage = k4a::image::create(K4A_IMAGE_FORMAT_COLOR_BGRA32, Width, Height, Width * static_cast<int>(sizeof(uint8) * 4));
+		}
+
+		try
+		{
+			KinectTransformation.color_image_to_depth_camera(DepthCapture, ColorCapture, &RemapImage);
+		}
+		catch (const k4a::error& Err)
+		{
+			FString Msg(ANSI_TO_TCHAR(Err.what()));
+			UE_LOG(AzureKinectDeviceLog, Error, TEXT("Cant't transform Color to Depth: %s"), *Msg);
+			return;
+		}
+
+		SourceBuffer = RemapImage.get_buffer();
+
+		DepthCapture.reset();
+		ColorCapture.reset();
+	}
+	else
+	{
+		k4a::image ColorCapture = Capture.get_color_image();
+
+		if (!ColorCapture.is_valid()) return;
+
+		Width = ColorCapture.get_width_pixels();
+		Height = ColorCapture.get_height_pixels();
+		if (Width == 0 || Height == 0) return;
+		
+		SourceBuffer = ColorCapture.get_buffer();
+
+		ColorCapture.reset();
+	}
 
 	if (ColorTexture->GetSurfaceWidth() != Width || ColorTexture->GetSurfaceHeight() != Height)
 	{
@@ -245,49 +299,74 @@ void UAzureKinectDevice::CaptureColorImage()
 	}	
 	else
 	{
-		const uint8* SrcData = ColorCapture.get_buffer();
+
 		FTextureResource* TextureResource = ColorTexture->Resource;
 		auto Region = FUpdateTextureRegion2D(0, 0, 0, 0, Width, Height);
 
 		ENQUEUE_RENDER_COMMAND(UpdateTextureData)(
-			[TextureResource, Region, SrcData](FRHICommandListImmediate& RHICmdList) {
+			[TextureResource, Region, SourceBuffer](FRHICommandListImmediate& RHICmdList) {
 				FTexture2DRHIRef Texture2D = TextureResource->TextureRHI ? TextureResource->TextureRHI->GetTexture2D() : nullptr;
 				if (!Texture2D)
 				{
 					return;
 				}
-				RHIUpdateTexture2D(Texture2D, 0, Region, 4 * Region.Width, SrcData);
+				RHIUpdateTexture2D(Texture2D, 0, Region, 4 * Region.Width, SourceBuffer);
 			});
 	}
-
-	ColorCapture.reset();
 
 }
 
 void UAzureKinectDevice::CaptureDepthImage()
 {
-	k4a::image DepthCapture = Capture.get_depth_image();
-	k4a::image ColorCapture = Capture.get_color_image();
-
-	if (!DepthCapture.is_valid() || !ColorCapture.is_valid()) return;
-
-	int32 Width = ColorCapture.get_width_pixels(), Height = ColorCapture.get_height_pixels();
-	if (Width == 0 || Height == 0) return;
-
-	if (!DepthRemapped || !DepthRemapped.is_valid())
+	int32 Width = 0, Height = 0;
+	uint8* SourceBuffer;
+	if (RemapMode == EKinectRemap::DEPTH_TO_COLOR)
 	{
-		DepthRemapped = k4a::image::create(K4A_IMAGE_FORMAT_DEPTH16, Width, Height, Width * static_cast<int>(sizeof(uint16_t)));
+		k4a::image DepthCapture = Capture.get_depth_image();
+		k4a::image ColorCapture = Capture.get_color_image();
+
+		if (!DepthCapture.is_valid() || !ColorCapture.is_valid()) return;
+
+		Width = ColorCapture.get_width_pixels();
+		Height = ColorCapture.get_height_pixels();
+		
+		if (Width == 0 || Height == 0) return;
+
+		//
+		if (!RemapImage || !RemapImage.is_valid())
+		{
+			RemapImage = k4a::image::create(K4A_IMAGE_FORMAT_DEPTH16, Width, Height, Width * static_cast<int>(sizeof(uint16)));
+		}
+
+		try
+		{
+			KinectTransformation.depth_image_to_color_camera(DepthCapture, &RemapImage);
+		}
+		catch (const k4a::error& Err)
+		{
+			FString Msg(ANSI_TO_TCHAR(Err.what()));
+			UE_LOG(AzureKinectDeviceLog, Error, TEXT("Cant't transform Depth to Color: %s"), *Msg);
+			return;
+		}
+
+		SourceBuffer = RemapImage.get_buffer();
+
+		DepthCapture.reset();
+		ColorCapture.reset();
 	}
+	else
+	{
+		k4a::image DepthCapture = Capture.get_depth_image();
+		if (!DepthCapture.is_valid()) return;
 
-	try
-	{
-		KinectTransformation.depth_image_to_color_camera(DepthCapture, &DepthRemapped);
-	}
-	catch (const k4a::error& Err)
-	{
-		FString Msg(ANSI_TO_TCHAR(Err.what()));
-		UE_LOG(AzureKinectDeviceLog, Error, TEXT("Cant't transform Depth to Color: %s"), *Msg);
-		return;
+		Width = DepthCapture.get_width_pixels();
+		Height = DepthCapture.get_height_pixels();
+
+		if (Width == 0 || Height == 0) return;
+
+		SourceBuffer = DepthCapture.get_buffer();
+
+		DepthCapture.reset();
 	}
 
 	if (DepthTexture->GetSurfaceWidth() != Width || DepthTexture->GetSurfaceHeight() != Height)
@@ -298,7 +377,7 @@ void UAzureKinectDevice::CaptureDepthImage()
 	}
 	else
 	{
-		uint8* S = DepthRemapped.get_buffer();
+		
 		TArray<uint8> SrcData;
 		SrcData.Reset(Width * Height * 4);
 		for (int hi = 0; hi < Height; hi++)
@@ -306,24 +385,16 @@ void UAzureKinectDevice::CaptureDepthImage()
 			for (int wi = 0; wi < Width; wi++)
 			{
 				int index = hi * Width + wi;
-				uint16 R = S[index * 2];
-				uint16 G = S[index * 2 + 1];
+				uint16 R = SourceBuffer[index * 2];
+				uint16 G = SourceBuffer[index * 2 + 1];
 				
 				uint16 Sample = G << 8 | R;
-				if (Sample > 0)
-				{
-					SrcData.Push(S[index * 2]);
-					SrcData.Push(S[index * 2 + 1]);
-					SrcData.Push(0x00);
-					SrcData.Push(0xFF);
-				}
-				else
-				{
-					SrcData.Push(S[index * 2]);
-					SrcData.Push(S[index * 2 + 1]);
-					SrcData.Push(0xFF);
-					SrcData.Push(0xFF);
-				}	
+
+				SrcData.Push(SourceBuffer[index * 2]);
+				SrcData.Push(SourceBuffer[index * 2 + 1]);
+				SrcData.Push(Sample > 0 ? 0x00 : 0xFF);
+				SrcData.Push(0xFF);
+				
 			}
 		}
 		
@@ -341,9 +412,6 @@ void UAzureKinectDevice::CaptureDepthImage()
 
 			});
 	}
-
-	DepthCapture.reset();
-	ColorCapture.reset();
 
 }
 
@@ -409,8 +477,8 @@ void UAzureKinectDevice::CaptureInflaredImage()
 void UAzureKinectDevice::CaptureBodyIndexImage(const k4abt::frame& BodyFrame)
 {
 	k4a::image BodyIndexMap = BodyFrame.get_body_index_map();
-	int32 Width = BodyIndexMap.get_width_pixels(), Height = BodyIndexMap.get_height_pixels();
 
+	int32 Width = BodyIndexMap.get_width_pixels(), Height = BodyIndexMap.get_height_pixels();
 	if (Width == 0 || Height == 0) return;
 
 	if (BodyIndexTexture->GetSurfaceWidth() != Width || BodyIndexTexture->GetSurfaceHeight() != Height)
@@ -480,27 +548,31 @@ void UAzureKinectDevice::UpdateSkeletons()
 		CaptureBodyIndexImage(BodyFrame);
 	}
 
-	NumTrackedSkeletons = BodyFrame.get_num_bodies();
-	Skeletons.Reset(NumTrackedSkeletons);
-
-	for (int32 i = 0; i < NumTrackedSkeletons; i++)
 	{
-		k4abt_body_t Body;
-		FAzureKinectSkeleton Skeleton;
-		
-		BodyFrame.get_body_skeleton(i, Body.skeleton);
-		Skeleton.ID = BodyFrame.get_body_id(i);
-		
-		Skeleton.Joints.Reset(K4ABT_JOINT_COUNT);
+		FScopeLock Lock(Thread->GetCriticalSection());
 
-		for (int32 j = 0; j < K4ABT_JOINT_COUNT; j++)
+		NumTrackedSkeletons = BodyFrame.get_num_bodies();
+		Skeletons.Reset(NumTrackedSkeletons);
+
+		for (int32 i = 0; i < NumTrackedSkeletons; i++)
 		{
-			Skeleton.Joints.Push(JointToTransform(Body.skeleton.joints[j], j));
-		}
-		
-		Skeletons.Push(Skeleton);
+			k4abt_body_t Body;
+			FAzureKinectSkeleton Skeleton;
 
+			BodyFrame.get_body_skeleton(i, Body.skeleton);
+			Skeleton.ID = BodyFrame.get_body_id(i);
+
+			Skeleton.Joints.Reset(K4ABT_JOINT_COUNT);
+
+			for (int32 j = 0; j < K4ABT_JOINT_COUNT; j++)
+			{
+				Skeleton.Joints.Push(JointToTransform(Body.skeleton.joints[j], j));
+			}
+
+			Skeletons.Push(Skeleton);
+		}
 	}
+	
 		
 	BodyFrame.reset();
 	
@@ -524,7 +596,7 @@ FTransform UAzureKinectDevice::JointToTransform(const k4abt_joint_t& Joint, int3
 	 * +ve Y-axis		Down		-ve Z-axis
 	 * +ve Z-axis		Forward		+ve X-axis
 	*/
-	FVector Position(Joint.position.xyz.x, Joint.position.xyz.z, - Joint.position.xyz.y);
+	FVector Position(Joint.position.xyz.z, Joint.position.xyz.x, - Joint.position.xyz.y);
 	Position *= 0.1f;
 
 	/**
@@ -533,65 +605,13 @@ FTransform UAzureKinectDevice::JointToTransform(const k4abt_joint_t& Joint, int3
 	 * Kinect's Right Hand orientation to Unreal's Left Hand orientation.
 	 */
 	FQuat Quat(
-		- Joint.orientation.wxyz.z,
-		- Joint.orientation.wxyz.x,
-		Joint.orientation.wxyz.y,
+		-Joint.orientation.wxyz.x,
+		-Joint.orientation.wxyz.y,
+		Joint.orientation.wxyz.z,
 		Joint.orientation.wxyz.w
 	);
 	
-	Quat = AlignJointOrientation(Quat, Index);
-
-	
 	return FTransform(Quat, Position);
-}
-
-FQuat UAzureKinectDevice::AlignJointOrientation(const FQuat& Quat, int32 Index)
-{
-	/**
-	 * Map the Azure Kinect joint orientation to Unreal Mannequin.
-	 * @see https://docs.microsoft.com/en-us/azure/kinect-dk/body-joints
-	 *
-	 * The pelvis, spine, chest, legs, neck and head joints extend along X-axis which is
-	 * along the Z-axis in UE4 and the joints forward axis (Y-axis) is along the X-axis in UE4.
-	 *
-	 * The shoulder joints extend along X-axis, their forward axis (Y-axis) is along the
-	 * X-axis in UE4 and their up axis (Z-axis) is along Z-axis in UE4.
-	 *
-	 * The elbow joints are similar to the shoulders, but the same mapping didn't work for them.
-	 *
-	 * The wrist joints are a bit tricky and I couldn't get them to work correctly.
-	*/
-#define JOINT_ID(Name) static_cast<uint8>(EKinectBodyJoint::Name)
-
-	if (
-		Index <= JOINT_ID(NECK) ||
-		(Index >= JOINT_ID(HEAD) && Index <= JOINT_ID(EAR_RIGHT)) ||
-		(Index >= JOINT_ID(HIP_LEFT) && Index <= JOINT_ID(FOOT_LEFT)) ||
-		(Index >= JOINT_ID(HIP_RIGHT) && Index <= JOINT_ID(FOOT_RIGHT))
-		)
-	{
-		return FRotationMatrix::MakeFromXZ(Quat.GetAxisY(), - Quat.GetAxisX()).ToQuat();
-	}
-	else if (
-		Index == JOINT_ID(CLAVICLE_LEFT) ||
-		Index == JOINT_ID(CLAVICLE_RIGHT) ||
-		Index == JOINT_ID(SHOULDER_LEFT) ||
-		Index == JOINT_ID(SHOULDER_RIGHT))
-	{
-		return FRotationMatrix::MakeFromXZ(Quat.GetAxisY(), Quat.GetAxisZ()).ToQuat();
-	}
-	else if (
-		Index == JOINT_ID(ELBOW_LEFT) || 
-		Index == JOINT_ID(WRIST_LEFT) ||
-		Index == JOINT_ID(ELBOW_RIGHT) ||
-		Index == JOINT_ID(WRIST_RIGHT))
-	{
-		return FRotationMatrix::MakeFromXZ(Quat.GetAxisY(), - Quat.GetAxisZ()).ToQuat();
-	}
-	
-	return Quat;
-
-#undef JOINT_ID
 }
 
 void UAzureKinectDevice::CalcFrameCount()

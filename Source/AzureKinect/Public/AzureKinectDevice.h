@@ -52,6 +52,9 @@ public:
 	EKinectColorResolution ColorMode;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Config")
+	EKinectRemap RemapMode;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Config")
 	EKinectFps Fps;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Config")
@@ -100,7 +103,7 @@ public:
 	 * Return an array of Skeletons currently aquired and stored.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Skeletons")
-	const TArray<FAzureKinectSkeleton>& GetSkeletons() const { return Skeletons; }
+	const TArray<FAzureKinectSkeleton>& GetSkeletons() const;
 
 	/**
 	 * Return a Skeleton struct by Index (not Skeleton ID).
@@ -126,7 +129,6 @@ private:
 	void CaptureBodyIndexImage(const k4abt::frame& BodyFrame);
 
 	static FTransform JointToTransform(const k4abt_joint_t& Joint, int32 Index);
-	static FQuat AlignJointOrientation(const FQuat& Quat, int32 Index);
 	void UpdateSkeletons();
 	
 	void CalcFrameCount();
@@ -134,7 +136,7 @@ private:
 	k4a::device NativeDevice;
 	k4a::capture Capture;
 	std::chrono::milliseconds FrameTime;
-	k4a::image DepthRemapped;
+	k4a::image RemapImage;
 	k4a::calibration KinectCalibration;
 	k4a::transformation KinectTransformation;
 	k4abt::tracker BodyTracker;

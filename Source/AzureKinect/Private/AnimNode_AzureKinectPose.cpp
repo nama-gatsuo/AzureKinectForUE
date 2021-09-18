@@ -38,7 +38,7 @@ void FAnimNode_AzureKinectPose::Update_AnyThread(const FAnimationUpdateContext& 
 				FCompactPoseBoneIndex CompactBoneIndex(BoneIndex);
 				BoneTransforms.Emplace(CompactBoneIndex, Skeleton.Joints[i]);
 
-				// Store Pelvis index to use in evaluate...
+				// Store Pelvis(Root) index to use in evaluate...
 				if (JointIndex == EKinectBodyJoint::PELVIS)
 				{
 					PelvisIndex = CompactBoneIndex;
@@ -64,11 +64,18 @@ void FAnimNode_AzureKinectPose::EvaluateComponentSpace_AnyThread(FComponentSpace
 		// We apply transform only to Pelvis ...
 		if (BoneTransform.BoneIndex == PelvisIndex)
 		{
-			Transform.SetTranslation(BoneTransform.Transform.GetLocation());
+			//Transform.SetTranslation(BoneTransform.Transform.GetLocation());
+			Transform.SetRotation(BoneTransform.Transform.GetRotation());
 		}
+		else
+		{
+			Transform.SetRotation(BoneTransform.Transform.Rotator().Quaternion());
+		}
+
 		
-		Transform.SetRotation(BoneTransform.Transform.Rotator().Quaternion());
 		Output.Pose.SetComponentSpaceTransform(BoneTransform.BoneIndex, Transform);
 	}
 	
+	
+
 }

@@ -69,6 +69,7 @@ void FAzureKinectDeviceCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 		auto ColorMode = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAzureKinectDevice, ColorMode));
 		auto Fps = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAzureKinectDevice, Fps));
 		auto SensorOrientation = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAzureKinectDevice, SensorOrientation));
+		auto RemapMode = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAzureKinectDevice, RemapMode));
 		auto SkeletonTracking = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAzureKinectDevice, bSkeletonTracking));
 
 		TAttribute<bool> CheckDeviceOpen(this, &FAzureKinectDeviceCustomization::OnGetOpened);
@@ -77,6 +78,7 @@ void FAzureKinectDeviceCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 		ConfigCategory.AddProperty(ColorMode).IsEnabled(CheckDeviceOpen);
 		ConfigCategory.AddProperty(Fps).IsEnabled(CheckDeviceOpen);
 		ConfigCategory.AddProperty(SensorOrientation).IsEnabled(CheckDeviceOpen);
+		ConfigCategory.AddProperty(RemapMode).IsEnabled(CheckDeviceOpen);
 		ConfigCategory.AddProperty(SkeletonTracking).IsEnabled(CheckDeviceOpen);
 	}
 

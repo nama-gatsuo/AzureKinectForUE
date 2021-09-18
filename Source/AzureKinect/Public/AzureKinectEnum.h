@@ -37,6 +37,13 @@ enum class EKinectFps : uint8
 	PER_SECOND_30		UMETA(DisplayName = "30 fps"),
 };
 
+UENUM(BlueprintType, Category = "Azure Kinect|Enums")
+enum class EKinectRemap : uint8
+{
+	COLOR_TO_DEPTH = 0	UMETA(DisplayName = "Color to Depth"),
+	DEPTH_TO_COLOR		UMETA(DisplayName = "Depth to Color"),
+};
+
 /**
  * Blueprintable enum defined based on k4abt_joint_id_t from k4abttypes.h
  * This should always have the same enum values as k4abt_joint_id_t
