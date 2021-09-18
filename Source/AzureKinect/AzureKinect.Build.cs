@@ -57,6 +57,7 @@ public class AzureKinect : ModuleRules
 				"Engine",
 				"RenderCore",
 				"RHI",
+				"AnimGraphRuntime",
 			});
 		
 	}

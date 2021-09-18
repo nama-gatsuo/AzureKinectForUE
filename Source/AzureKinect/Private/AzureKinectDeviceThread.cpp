@@ -43,7 +43,7 @@ uint32 FAzureKinectDeviceThread::Run()
 	while (StopTaskCounter.GetValue() == 0)
 	{
 		// Do the Kinect capture, enqueue, pop body frame stuff
-		KinectDevice->Update();
+		KinectDevice->UpdateAsync();
 	}
 
 	return 0;

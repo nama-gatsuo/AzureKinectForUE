@@ -23,7 +23,7 @@
 		},
 		{
 			"Name": "AzureKinectEditor",
-			"Type": "Editor",
+			"Type": "UncookedOnly",
 			"LoadingPhase": "Default"
 		}
 	]

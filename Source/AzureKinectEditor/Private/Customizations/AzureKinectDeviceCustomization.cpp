@@ -30,15 +30,15 @@ void FAzureKinectDeviceCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 		return;
 	}
 
-	// Customize 'AzureKinect' category
-	IDetailCategoryBuilder& KinectCategory = DetailBuilder.EditCategory("Azure Kinect");
+	// Customize 'Config' category
+	IDetailCategoryBuilder& ConfigCategory = DetailBuilder.EditCategory("Config");
 	
 	{
 		// Add Custom Row of Device selection
 		AzureKinectDevice->DeviceList;
 		CurrentOption = AzureKinectDevice->DeviceList[0];
 		
-		KinectCategory.AddCustomRow(LOCTEXT("DeviceSelectionFilterString", "Device Selection"))
+		ConfigCategory.AddCustomRow(LOCTEXT("DeviceSelectionFilterString", "Device Selection"))
 			.NameContent()
 			[
 				SNew(STextBlock)
@@ -69,18 +69,23 @@ void FAzureKinectDeviceCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 		auto ColorMode = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAzureKinectDevice, ColorMode));
 		auto Fps = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAzureKinectDevice, Fps));
 		auto SensorOrientation = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAzureKinectDevice, SensorOrientation));
+		auto SkeletonTracking = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAzureKinectDevice, bSkeletonTracking));
 
 		TAttribute<bool> CheckDeviceOpen(this, &FAzureKinectDeviceCustomization::OnGetOpened);
 
-		KinectCategory.AddProperty(DepthMode).IsEnabled(CheckDeviceOpen);
-		KinectCategory.AddProperty(ColorMode).IsEnabled(CheckDeviceOpen);
-		KinectCategory.AddProperty(Fps).IsEnabled(CheckDeviceOpen);
-		KinectCategory.AddProperty(SensorOrientation).IsEnabled(CheckDeviceOpen);
+		ConfigCategory.AddProperty(DepthMode).IsEnabled(CheckDeviceOpen);
+		ConfigCategory.AddProperty(ColorMode).IsEnabled(CheckDeviceOpen);
+		ConfigCategory.AddProperty(Fps).IsEnabled(CheckDeviceOpen);
+		ConfigCategory.AddProperty(SensorOrientation).IsEnabled(CheckDeviceOpen);
+		ConfigCategory.AddProperty(SkeletonTracking).IsEnabled(CheckDeviceOpen);
 	}
+
+	// Customize 'IO' category
+	IDetailCategoryBuilder& IOCategory = DetailBuilder.EditCategory("IO");
 
 	{
 		// Add Custom Row of Execution buttons
-		KinectCategory.AddCustomRow(LOCTEXT("ButtonFilterString", "Function Buttons"))
+		IOCategory.AddCustomRow(LOCTEXT("ButtonFilterString", "Function Buttons"))
 			.NameContent()
 			[
 				SNew(STextBlock)
@@ -170,7 +175,7 @@ FReply FAzureKinectDeviceCustomization::OnStart()
 
 FReply FAzureKinectDeviceCustomization::OnLoad()
 {
-	AzureKinectDevice->LoadDevice();
+	AzureKinectDevice->LoadDevices();
 	return FReply::Handled();
 }
 
