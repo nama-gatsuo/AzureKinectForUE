@@ -34,5 +34,4 @@ public:
 
 private:
 	TArray<FBoneTransform> BoneTransforms;
-	FCompactPoseBoneIndex PelvisIndex;
 };

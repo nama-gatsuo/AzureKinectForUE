@@ -171,29 +171,43 @@ int32 UAzureKinectDevice::GetNumTrackedSkeletons() const
 
 FAzureKinectSkeleton UAzureKinectDevice::GetSkeleton(int32 Index) const
 {
-	FScopeLock Lock(Thread->GetCriticalSection());
-
-	if (!bSkeletonTracking)
+	if (bOpen)
 	{
-		UE_LOG(AzureKinectDeviceLog, Error, TEXT("GetSkeleton: Skeleton Tracking is disabled!"));
-		return FAzureKinectSkeleton();
-	}
+		FScopeLock Lock(Thread->GetCriticalSection());
+		if (!bSkeletonTracking)
+		{
+			UE_LOG(AzureKinectDeviceLog, Error, TEXT("GetSkeleton: Skeleton Tracking is disabled!"));
+			return FAzureKinectSkeleton();
+		}
 
-	if (Skeletons.IsValidIndex(Index))
-	{
-		return Skeletons[Index];
+		if (Skeletons.IsValidIndex(Index))
+		{
+			return Skeletons[Index];
+		}
+		else
+		{
+			UE_LOG(AzureKinectDeviceLog, Error, TEXT("GetSkeleton: Index is out of range!"));
+			return FAzureKinectSkeleton();
+		}
 	}
 	else
 	{
-		UE_LOG(AzureKinectDeviceLog, Error, TEXT("GetSkeleton: Index is out of range!"));
 		return FAzureKinectSkeleton();
 	}
+	
 	
 }
 
 const TArray<FAzureKinectSkeleton>& UAzureKinectDevice::GetSkeletons() const {
-	FScopeLock Lock(Thread->GetCriticalSection());
-	return Skeletons;
+	if (bOpen)
+	{
+		FScopeLock Lock(Thread->GetCriticalSection());
+		return Skeletons;
+	}
+	else
+	{
+		return Skeletons;
+	}
 }
 
 void UAzureKinectDevice::UpdateAsync()

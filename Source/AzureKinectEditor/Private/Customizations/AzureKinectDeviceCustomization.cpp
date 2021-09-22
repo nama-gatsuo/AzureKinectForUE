@@ -156,7 +156,7 @@ FText FAzureKinectDeviceCustomization::GetCurrentItemLabel() const
 		return FText::FromString(*CurrentOption);
 	}
 
-	return LOCTEXT("InvalidComboEntryText", "<<Invalid option>>");	
+	return LOCTEXT("InvalidComboEntryText", "No Device");
 }
 
 EVisibility FAzureKinectDeviceCustomization::OnGetPropVisibility() const
