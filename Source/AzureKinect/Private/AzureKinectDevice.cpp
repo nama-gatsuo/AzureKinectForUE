@@ -160,12 +160,17 @@ int32 UAzureKinectDevice::GetNumConnectedDevices()
 
 int32 UAzureKinectDevice::GetNumTrackedSkeletons() const
 {
-	FScopeLock Lock(Thread->GetCriticalSection());
+	if (!bOpen)
+	{
+		return 0;
+	}	
 	if (!bSkeletonTracking)
 	{
 		UE_LOG(AzureKinectDeviceLog, Error, TEXT("GetNumTrackedBodies: Skeleton Tracking is disabled!"));
 		return 0;
 	}
+
+	FScopeLock Lock(Thread->GetCriticalSection());
 	return NumTrackedSkeletons;
 }
 
@@ -173,13 +178,13 @@ FAzureKinectSkeleton UAzureKinectDevice::GetSkeleton(int32 Index) const
 {
 	if (bOpen)
 	{
-		FScopeLock Lock(Thread->GetCriticalSection());
 		if (!bSkeletonTracking)
 		{
 			UE_LOG(AzureKinectDeviceLog, Error, TEXT("GetSkeleton: Skeleton Tracking is disabled!"));
 			return FAzureKinectSkeleton();
 		}
 
+		FScopeLock Lock(Thread->GetCriticalSection());
 		if (Skeletons.IsValidIndex(Index))
 		{
 			return Skeletons[Index];
@@ -194,7 +199,6 @@ FAzureKinectSkeleton UAzureKinectDevice::GetSkeleton(int32 Index) const
 	{
 		return FAzureKinectSkeleton();
 	}
-	
 	
 }
 
