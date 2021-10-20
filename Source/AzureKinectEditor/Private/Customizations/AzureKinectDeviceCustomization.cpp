@@ -33,9 +33,13 @@ void FAzureKinectDeviceCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 	// Customize 'Config' category
 	IDetailCategoryBuilder& ConfigCategory = DetailBuilder.EditCategory("Config");
 	
+	TAttribute<bool> CheckDeviceOpen = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda(
+		[this]() {
+			return !AzureKinectDevice->IsOpen();
+		}));
+
 	{
 		// Add Custom Row of Device selection
-		AzureKinectDevice->DeviceList;
 		CurrentOption = AzureKinectDevice->DeviceList[0];
 		
 		ConfigCategory.AddCustomRow(LOCTEXT("DeviceSelectionFilterString", "Device Selection"))
@@ -47,7 +51,7 @@ void FAzureKinectDeviceCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 			.ValueContent()
 			[
 				SNew(SComboBox<TSharedPtr<FString>>)
-				.IsEnabled_Raw(this, &FAzureKinectDeviceCustomization::OnGetOpened)
+				.IsEnabled(CheckDeviceOpen)
 				.OptionsSource(&(AzureKinectDevice->DeviceList))
 				.OnSelectionChanged_Raw(this, &FAzureKinectDeviceCustomization::OnSelectionChanged)
 				.OnGenerateWidget_Raw(this, &FAzureKinectDeviceCustomization::MakeWidgetForOption)
@@ -59,73 +63,80 @@ void FAzureKinectDeviceCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 			];
 	}
 
-	{
-
-		// Alternative of UProperty specifier: meta=(EditCondition="bOpen")
-		// I don't wanna make "bOpen" editable UProperty.
-		// Below is a workarround how to make UProperty conditional without condition (Uproperty boolean)
-
-		auto DepthMode = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAzureKinectDevice, DepthMode));
-		auto ColorMode = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAzureKinectDevice, ColorMode));
-		auto Fps = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAzureKinectDevice, Fps));
-		auto SensorOrientation = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAzureKinectDevice, SensorOrientation));
-		auto RemapMode = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAzureKinectDevice, RemapMode));
-		auto SkeletonTracking = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAzureKinectDevice, bSkeletonTracking));
-
-		TAttribute<bool> CheckDeviceOpen(this, &FAzureKinectDeviceCustomization::OnGetOpened);
-
-		ConfigCategory.AddProperty(DepthMode).IsEnabled(CheckDeviceOpen);
-		ConfigCategory.AddProperty(ColorMode).IsEnabled(CheckDeviceOpen);
-		ConfigCategory.AddProperty(Fps).IsEnabled(CheckDeviceOpen);
-		ConfigCategory.AddProperty(SensorOrientation).IsEnabled(CheckDeviceOpen);
-		ConfigCategory.AddProperty(RemapMode).IsEnabled(CheckDeviceOpen);
-		ConfigCategory.AddProperty(SkeletonTracking).IsEnabled(CheckDeviceOpen);
-	}
+	// Alternative of UProperty specifier: meta=(EditCondition="bOpen")
+	// I don't wanna make "bOpen" editable UProperty.
+	// Below is a workarround how to make UProperty conditional without condition (Uproperty boolean)
+	auto DepthMode = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAzureKinectDevice, DepthMode));
+	auto ColorMode = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAzureKinectDevice, ColorMode));
+	auto Fps = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAzureKinectDevice, Fps));
+	auto SensorOrientation = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAzureKinectDevice, SensorOrientation));
+	auto RemapMode = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAzureKinectDevice, RemapMode));
+	auto SkeletonTracking = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAzureKinectDevice, bSkeletonTracking));
+		
+	ConfigCategory.AddProperty(DepthMode).IsEnabled(CheckDeviceOpen);
+	ConfigCategory.AddProperty(ColorMode).IsEnabled(CheckDeviceOpen);
+	ConfigCategory.AddProperty(Fps).IsEnabled(CheckDeviceOpen);
+	ConfigCategory.AddProperty(SensorOrientation).IsEnabled(CheckDeviceOpen);
+	ConfigCategory.AddProperty(RemapMode).IsEnabled(CheckDeviceOpen);
+	ConfigCategory.AddProperty(SkeletonTracking).IsEnabled(CheckDeviceOpen);
+	
 
 	// Customize 'IO' category
 	IDetailCategoryBuilder& IOCategory = DetailBuilder.EditCategory("IO");
 
-	{
-		// Add Custom Row of Execution buttons
-		IOCategory.AddCustomRow(LOCTEXT("ButtonFilterString", "Function Buttons"))
-			.NameContent()
+	// Add Custom Row of Execution buttons
+	IOCategory.AddCustomRow(LOCTEXT("ButtonFilterString", "Function Buttons"))
+		.NameContent()
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("ExecutionLabel", "Execution"))
+		]
+		.ValueContent()
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.Padding(FMargin(0.f, 2.f, 10.f, 2.f))
+			.AutoWidth()
 			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("ExecutionLabel", "Execution"))
+				SNew(SButton)
+				.Text(LOCTEXT("LoadButtonText", "LoadDevice"))
+				.Visibility_Lambda([this]() {
+					return AzureKinectDevice->IsOpen() ? EVisibility::Collapsed : EVisibility::Visible;
+				})
+				.OnClicked_Lambda([this]() {
+					AzureKinectDevice->LoadDevices();
+					return FReply::Handled();
+				})
 			]
-			.ValueContent()
+			+ SHorizontalBox::Slot()
+			.Padding(FMargin(0.f, 2.f, 10.0f, 2.f))
+			.AutoWidth()
 			[
-				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot()
-				.Padding(FMargin(0.f, 2.f, 10.f, 2.f))
-				.AutoWidth()
-				[
-					SNew(SButton)
-					.Text(LOCTEXT("LoadButtonText", "LoadDevice"))
-					.Visibility_Raw(this, &FAzureKinectDeviceCustomization::OnGetPropVisibility)
-					.OnClicked_Raw(this, &FAzureKinectDeviceCustomization::OnLoad)
-				]
-				+ SHorizontalBox::Slot()
-				.Padding(FMargin(0.f, 2.f, 10.0f, 2.f))
-				.AutoWidth()
-				[
-					SNew(SButton)
-					.Text(LOCTEXT("StartButtonText", "StartDevice"))
-					.Visibility_Raw(this, &FAzureKinectDeviceCustomization::OnGetPropVisibility)
-					.OnClicked_Raw(this, &FAzureKinectDeviceCustomization::OnStart)
-				]
-				+ SHorizontalBox::Slot()
-				.Padding(FMargin(0.f, 0, 10.f, 2.f))
-				.AutoWidth()
-				[
-					SNew(SButton)
-					.Text(LOCTEXT("StopButtonText", "StopDevice"))
-					.Visibility_Raw(this, &FAzureKinectDeviceCustomization::OnGetPropVisibilityNegative)
-					.OnClicked_Raw(this, &FAzureKinectDeviceCustomization::OnStop)
-				]
-			];
-
-	}
+				SNew(SButton)
+				.Text(LOCTEXT("StartButtonText", "StartDevice"))
+				.Visibility_Lambda([this]() {
+					return AzureKinectDevice->IsOpen() ? EVisibility::Collapsed : EVisibility::Visible;
+				})
+				.OnClicked_Lambda([this]() {
+					AzureKinectDevice->StartDevice();
+					return FReply::Handled();
+				})
+			]
+			+ SHorizontalBox::Slot()
+			.Padding(FMargin(0.f, 0, 10.f, 2.f))
+			.AutoWidth()
+			[
+				SNew(SButton)
+				.Text(LOCTEXT("StopButtonText", "StopDevice"))
+				.Visibility_Lambda([this]() {
+					return AzureKinectDevice->IsOpen() ? EVisibility::Visible : EVisibility::Collapsed;
+				})
+				.OnClicked_Lambda([this]() {
+					AzureKinectDevice->StopDevice();
+					return FReply::Handled();
+				})
+			]
+		];
 
 }
 
@@ -157,39 +168,6 @@ FText FAzureKinectDeviceCustomization::GetCurrentItemLabel() const
 	}
 
 	return LOCTEXT("InvalidComboEntryText", "No Device");
-}
-
-EVisibility FAzureKinectDeviceCustomization::OnGetPropVisibility() const
-{
-	return AzureKinectDevice->IsOpen() ? EVisibility::Collapsed : EVisibility::Visible;
-}
-
-EVisibility FAzureKinectDeviceCustomization::OnGetPropVisibilityNegative() const
-{
-	return AzureKinectDevice->IsOpen() ? EVisibility::Visible : EVisibility::Collapsed;
-}
-
-FReply FAzureKinectDeviceCustomization::OnStart()
-{
-	AzureKinectDevice->StartDevice();
-	return FReply::Handled();
-}
-
-FReply FAzureKinectDeviceCustomization::OnLoad()
-{
-	AzureKinectDevice->LoadDevices();
-	return FReply::Handled();
-}
-
-FReply FAzureKinectDeviceCustomization::OnStop()
-{
-	AzureKinectDevice->StopDevice();
-	return FReply::Handled();
-}
-
-bool FAzureKinectDeviceCustomization::OnGetOpened() const
-{
-	return !AzureKinectDevice->IsOpen();
 }
 
 #undef LOCTEXT_NAMESPACE
