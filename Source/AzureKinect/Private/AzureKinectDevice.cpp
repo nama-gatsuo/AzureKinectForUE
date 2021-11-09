@@ -141,6 +141,11 @@ bool UAzureKinectDevice::StopDevice()
 		BodyTracker = nullptr;
 	}
 
+	if (RemapImage)
+	{
+		RemapImage.reset();
+	}
+
 	if (NativeDevice)
 	{
 		NativeDevice.stop_cameras();
@@ -163,7 +168,7 @@ int32 UAzureKinectDevice::GetNumTrackedSkeletons() const
 	if (!bOpen)
 	{
 		return 0;
-	}	
+	}
 	if (!bSkeletonTracking)
 	{
 		UE_LOG(AzureKinectDeviceLog, Error, TEXT("GetNumTrackedBodies: Skeleton Tracking is disabled!"));
