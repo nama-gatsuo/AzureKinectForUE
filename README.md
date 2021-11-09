@@ -15,8 +15,8 @@ Mainly for depth and color textures creation from Kinect's raw feed.
     * `Azure Kinect Body Tracking SDK v1.1.0` is installed
         * Download from [here](https://docs.microsoft.com/en-us/azure/Kinect-dk/body-sdk-download)
         * An env variable `AZUREKINECT_BODY_SDK` that points to the Azure Kinect Body Tracking SDK root path should be registered. 
-    * this plugin cannot be neither built nor open without the SDKs and paths above. 
-        * [AzureKinect.Build.cs](https://github.com/nama-gatsuo/AzureKinectForUE/blob/master/Source/AzureKinect/AzureKinect.Build.cs) describes how it resolve dependent paths.
+    * This plugin cannot be neither built nor open without the SDKs and paths above. 
+        * [AzureKinect.Build.cs](https://github.com/nama-gatsuo/AzureKinectForUE/blob/master/Source/AzureKinect/AzureKinect.Build.cs) describes how it resolves dependent paths.
 * Unreal Engine 4.27~
     * Only tested with 4.27. May work with lower.
 
